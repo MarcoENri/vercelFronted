@@ -41,8 +41,8 @@ import TalentoHumano from "../assets/imagenes-Tec/Talento-Humano.jpeg";
 import Enfermeria from "../assets/imagenes-Tec/Enfermeria.jpeg";
 import Electricidad from "../assets/imagenes-Tec/Electricidad.jpeg";
 
-// ✅ Servicios
-import { forgotPassword, resetPassword } from "../services/authService";
+// ✅ Servicios (Cambio A: resetPassword eliminado)
+import { forgotPassword } from "../services/authService";
 import type { UserResponse } from "../services/adminUserService";
 
 // ================= TIPOS =================
@@ -90,26 +90,22 @@ export default function LoginPage() {
     localStorage.setItem("loginOpen", showLogin.toString());
   }, [showLogin]);
 
-  // ================= LÓGICA RECUPERAR CONTRASEÑA =================
+  // ================= LÓGICA RECUPERAR CONTRASEÑA (Cambio B aplicado) =================
   const [openReset, setOpenReset] = useState(false);
-  const [resetStep, setResetStep] = useState<"email" | "reset">("email");
   const [resetEmail, setResetEmail] = useState("");
-  const [resetToken, setResetToken] = useState("");
-  const [resetNewPass, setResetNewPass] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMsg, setResetMsg] = useState("");
 
+  // Cambio C: openResetModal simplificado
   const openResetModal = () => {
     setResetMsg("");
-    setResetStep("email");
     setResetEmail("");
-    setResetToken("");
-    setResetNewPass("");
     setOpenReset(true);
   };
 
   const closeResetModal = () => setOpenReset(false);
 
+  // Cambio D: handleSendToken (sin cambio de paso)
   const handleSendToken = async () => {
     setResetMsg("");
     if (!resetEmail.trim()) {
@@ -119,8 +115,7 @@ export default function LoginPage() {
     setResetLoading(true);
     try {
       const res = await forgotPassword(resetEmail.trim());
-      setResetMsg(res.message || "Se envió un código a tu correo ✅");
-      setResetStep("reset");
+      setResetMsg(res.message || "Se ha enviado un correo con las instrucciones ✅");
     } catch (e: any) {
       setResetMsg(e?.response?.data?.message ?? "Error al enviar correo.");
     } finally {
@@ -128,27 +123,7 @@ export default function LoginPage() {
     }
   };
 
-  const handleDoReset = async () => {
-    setResetMsg("");
-    if (!resetToken.trim()) {
-      setResetMsg("Pega el token recibido.");
-      return;
-    }
-    if (resetNewPass.length < 6) {
-      setResetMsg("La contraseña debe tener al menos 6 caracteres.");
-      return;
-    }
-    setResetLoading(true);
-    try {
-      await resetPassword(resetToken.trim(), resetNewPass);
-      setResetMsg("Contraseña actualizada ✅ Ya puedes iniciar sesión.");
-      setTimeout(() => setOpenReset(false), 2000);
-    } catch (e: any) {
-      setResetMsg(e?.response?.data?.message ?? "No se pudo cambiar la contraseña.");
-    } finally {
-      setResetLoading(false);
-    }
-  };
+  // Cambio E: Función handleDoReset ELIMINADA
 
   // ================= LÓGICA LOGIN =================
   const onSubmit = async (e: React.FormEvent) => {
@@ -296,50 +271,43 @@ export default function LoginPage() {
         </Collapse>
       </Box>
 
-      {/* Modal Recuperar Contraseña (2 Pasos) */}
+      {/* Cambio F: Modal Recuperar Contraseña Simplificado */}
       <Dialog open={openReset} onClose={closeResetModal} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 900 }}>Recuperar contraseña</DialogTitle>
+
         <DialogContent dividers>
-          {resetStep === "email" ? (
-            <TextField 
-              label="Correo Institucional" 
-              fullWidth 
-              value={resetEmail} 
-              onChange={(e) => setResetEmail(e.target.value)} 
-              sx={{ mt: 1 }} 
-            />
-          ) : (
-            <Box sx={{ display: "grid", gap: 2, mt: 1 }}>
-              <TextField 
-                label="Token del correo" 
-                fullWidth 
-                value={resetToken} 
-                onChange={(e) => setResetToken(e.target.value)} 
-              />
-              <TextField 
-                label="Nueva Contraseña" 
-                type="password" 
-                fullWidth 
-                value={resetNewPass} 
-                onChange={(e) => setResetNewPass(e.target.value)} 
-              />
-            </Box>
-          )}
+          <TextField
+            label="Correo Institucional"
+            fullWidth
+            value={resetEmail}
+            onChange={(e) => setResetEmail(e.target.value)}
+            sx={{ mt: 1 }}
+            disabled={resetLoading}
+          />
+
           {resetMsg && (
-            <Typography sx={{ fontSize: "0.8rem", mt: 1, color: resetMsg.includes("✅") ? "green" : "red" }}>
+            <Typography
+              sx={{
+                fontSize: "0.8rem",
+                mt: 1.5,
+                color: resetMsg.includes("✅") ? "green" : "red",
+              }}
+            >
               {resetMsg}
             </Typography>
           )}
         </DialogContent>
+
         <DialogActions>
           <Button onClick={closeResetModal}>Cancelar</Button>
-          <Button 
-            variant="contained" 
+
+          <Button
+            variant="contained"
             disabled={resetLoading}
-            onClick={resetStep === "email" ? handleSendToken : handleDoReset} 
+            onClick={handleSendToken}
             sx={{ bgcolor: brand.primary }}
           >
-            {resetLoading ? "Procesando..." : "Continuar"}
+            {resetLoading ? "Enviando..." : "Enviar correo"}
           </Button>
         </DialogActions>
       </Dialog>
