@@ -17,7 +17,7 @@ export default defineConfig({
         changeOrigin: true,
       },
       "/me": {
-        target: "https://renderbackend-ix9y.onrender.com",
+        target: "http://165.227.111.180:8081",
         changeOrigin: true,
       },
       // Si tu backend tiene otros endpoints, agrégalos aquí
