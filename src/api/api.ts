@@ -1,7 +1,7 @@
 import axios from "axios";
 
-const baseURL =
-  import.meta.env.VITE_API_URL || "http://localhost:8081";
+const baseURL = import.meta.env.VITE_API_URL;
+
 export const api = axios.create({
   baseURL,
 });
@@ -22,12 +22,10 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     const status = err?.response?.status;
-
     if (status === 401) {
       localStorage.clear();
       window.location.href = "/";
     }
-
     return Promise.reject(err);
   }
 );
