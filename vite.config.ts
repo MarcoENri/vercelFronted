@@ -13,11 +13,11 @@ export default defineConfig({
     proxy: {
       // SOLO endpoints de API del backend
       "/auth": {
-        target: "http://165.227.111.180:8081",
+        target: "https://daughter-frequent-maintain-displays.trycloudflare.com",
         changeOrigin: true,
       },
       "/me": {
-        target: "http://165.227.111.180:8081",
+        target: "https://daughter-frequent-maintain-displays.trycloudflare.com",
         changeOrigin: true,
       },
       // Si tu backend tiene otros endpoints, agrégalos aquí
