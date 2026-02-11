@@ -1,7 +1,7 @@
 import axios from "axios";
 
 export const api = axios.create({
-  baseURL: "http://165.227.111.180:8081",
+  baseURL: "https://daughter-frequent-maintain-displays.trycloudflare.com",
 });
 
 api.interceptors.request.use(
