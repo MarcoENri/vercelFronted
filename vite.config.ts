@@ -13,11 +13,11 @@ export default defineConfig({
     proxy: {
       // SOLO endpoints de API del backend
       "/auth": {
-        target: "http://localhost:8081",
+        target: "https://renderbackend-ix9y.onrender.com",
         changeOrigin: true,
       },
       "/me": {
-        target: "http://localhost:8081",
+        target: "https://renderbackend-ix9y.onrender.com",
         changeOrigin: true,
       },
       // Si tu backend tiene otros endpoints, agrégalos aquí
