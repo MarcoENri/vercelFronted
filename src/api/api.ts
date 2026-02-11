@@ -1,7 +1,11 @@
 import axios from "axios";
 
+const baseURL =
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:8081"; // fallback para local si no pones env
+
 export const api = axios.create({
-  baseURL: "https://investigation-deutschland-accessory-loud.trycloudflare.com",
+  baseURL,
 });
 
 api.interceptors.request.use(
@@ -21,13 +25,11 @@ api.interceptors.response.use(
   (err) => {
     const status = err?.response?.status;
 
-    // ⚠️ RECOMENDADO: limpia sesión solo con 401 (token inválido/expirado)
     if (status === 401) {
       localStorage.clear();
       window.location.href = "/";
     }
 
-    // Si es 403 puede ser "no tienes permiso" (NO necesariamente token malo)
     return Promise.reject(err);
   }
 );
