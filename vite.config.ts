@@ -13,11 +13,11 @@ export default defineConfig({
     proxy: {
       // SOLO endpoints de API del backend
       "/auth": {
-        target: "https://daughter-frequent-maintain-displays.trycloudflare.com",
+        target: "https://investigation-deutschland-accessory-loud.trycloudflare.com",
         changeOrigin: true,
       },
       "/me": {
-        target: "https://daughter-frequent-maintain-displays.trycloudflare.com",
+        target: "https://investigation-deutschland-accessory-loud.trycloudflare.com",
         changeOrigin: true,
       },
       // Si tu backend tiene otros endpoints, agrégalos aquí
