@@ -60,6 +60,7 @@ export default function CoordinatorSidebar({
   onLogout,
   onPhotoChange,
 }: CoordinatorSidebarProps) {
+   console.log("Sidebar props:", { coordinatorName, coordinatorUsername });
   const nav = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -88,7 +89,7 @@ export default function CoordinatorSidebar({
     {
       text: "Defensa Final (Jurado)",
       icon: <AssignmentIndIcon />,
-      path: "/jury/final-defense",
+      path: "/coordinator/final-defense",
       tooltip: "Gestionar defensas finales como jurado",
     },
   ];

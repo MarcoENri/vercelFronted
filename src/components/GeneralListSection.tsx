@@ -13,6 +13,8 @@ import {
   ListItemText,
   Divider,
   Chip,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -27,7 +29,13 @@ type Props = {
   searchTerm: string;
   setSearchTerm: (v: string) => void;
   getStudentName: (s: any) => string;
-  getSemaforo: (s: any) => { bg: string; border: string; chipBg: string; chipText: string; label: string; };
+  getSemaforo: (s: any) => {
+    bg: string;
+    border: string;
+    chipBg: string;
+    chipText: string;
+    label: string;
+  };
   onViewProfile: (id: any) => void;
   onClearIncidents: (id: number) => void;
   onMarkIncidentsSeen?: (id: number) => void;
@@ -35,65 +43,116 @@ type Props = {
 
 // --- 🚨 ANIMACIONES DE EMERGENCIA (VIBRACIÓN REAL) ---
 const animations = {
-  '@keyframes emergencyShakeRojo': {
-    '0%, 100%': { transform: 'translateX(0)', backgroundColor: '#fff', boxShadow: 'inset 10px 0 0 #FF3131' },
-    '20%': { transform: 'translateX(-5px)', backgroundColor: '#FF3131', color: '#fff' },
-    '40%': { transform: 'translateX(5px)' },
-    '60%': { transform: 'translateX(-5px)' },
-    '80%': { transform: 'translateX(5px)', boxShadow: '0 0 25px #FF3131' },
+  "@keyframes emergencyShakeRojo": {
+    "0%, 100%": {
+      transform: "translateX(0)",
+      backgroundColor: "#fff",
+      boxShadow: "inset 10px 0 0 #FF3131",
+    },
+    "20%": { transform: "translateX(-5px)", backgroundColor: "#FF3131", color: "#fff" },
+    "40%": { transform: "translateX(5px)" },
+    "60%": { transform: "translateX(-5px)" },
+    "80%": { transform: "translateX(5px)", boxShadow: "0 0 25px #FF3131" },
   },
-  '@keyframes emergencyShakeNaranja': {
-    '0%, 100%': { transform: 'translateX(0)', backgroundColor: '#fff', boxShadow: 'inset 10px 0 0 #FF8C00' },
-    '25%': { transform: 'translateX(-3px)', backgroundColor: '#FF8C00', color: '#fff' },
-    '75%': { transform: 'translateX(3px)', boxShadow: '0 0 20px #FF8C00' },
+  "@keyframes emergencyShakeNaranja": {
+    "0%, 100%": {
+      transform: "translateX(0)",
+      backgroundColor: "#fff",
+      boxShadow: "inset 10px 0 0 #FF8C00",
+    },
+    "25%": { transform: "translateX(-3px)", backgroundColor: "#FF8C00", color: "#fff" },
+    "75%": { transform: "translateX(3px)", boxShadow: "0 0 20px #FF8C00" },
   },
-  '@keyframes emergencyShakeAmarillo': {
-    '0%, 100%': { transform: 'translateX(0)', backgroundColor: '#fff', boxShadow: 'inset 10px 0 0 #FFD700' },
-    '50%': { backgroundColor: '#FFD700', transform: 'translateX(-2px)' },
+  "@keyframes emergencyShakeAmarillo": {
+    "0%, 100%": {
+      transform: "translateX(0)",
+      backgroundColor: "#fff",
+      boxShadow: "inset 10px 0 0 #FFD700",
+    },
+    "50%": { backgroundColor: "#FFD700", transform: "translateX(-2px)" },
   },
-  '@keyframes emergencyShakeAzul': {
-    '0%, 100%': { transform: 'translateY(0)', backgroundColor: '#fff', boxShadow: 'inset 10px 0 0 #1976d2' },
-    '25%': { transform: 'translateY(-4px)', backgroundColor: '#1976d2', color: '#fff' },
-    '75%': { transform: 'translateY(4px)', boxShadow: '0 0 20px #1976d2' },
-  }
+  "@keyframes emergencyShakeAzul": {
+    "0%, 100%": {
+      transform: "translateY(0)",
+      backgroundColor: "#fff",
+      boxShadow: "inset 10px 0 0 #1976d2",
+    },
+    "25%": { transform: "translateY(-4px)", backgroundColor: "#1976d2", color: "#fff" },
+    "75%": { transform: "translateY(4px)", boxShadow: "0 0 20px #1976d2" },
+  },
 };
 
 export default function GeneralListSection({
-  verde, careerCards, groupedStudents, searchTerm, setSearchTerm, getStudentName, getSemaforo, onViewProfile, onMarkIncidentsSeen
+  verde,
+  careerCards,
+  groupedStudents,
+  searchTerm,
+  setSearchTerm,
+  getStudentName,
+  getSemaforo,
+  onViewProfile,
+  onMarkIncidentsSeen,
 }: Props) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
   return (
     <>
-      <Box sx={{ width: "100%", maxWidth: "1100px", mb: 2, ...animations }}>
-        <Card sx={{ px: 2, py: 1, borderRadius: "14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, minHeight: 58 }}>
-          <Typography sx={{ fontWeight: 600, color: verde }}>Lista General</Typography>
+      {/* Barra de búsqueda */}
+      <Box sx={{ width: "100%", maxWidth: "915px", mb: 2, mt: 2, ...animations }}>
+        <Card
+          sx={{
+            px: { xs: 1.5, sm: 2 },
+            py: 1,
+            borderRadius: "14px",
+            display: "flex",
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: { xs: "flex-start", sm: "center" },
+            justifyContent: "space-between",
+            gap: { xs: 1, sm: 2 },
+            minHeight: { xs: "auto", sm: 58 },
+          }}
+        >
+          <Typography sx={{ fontWeight: 600, color: verde, whiteSpace: "nowrap" }}>
+            Lista General
+          </Typography>
           <TextField
             placeholder="Nombre, apellido o cédula"
-            value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} size="small" sx={{ width: 340 }}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            size="small"
+            fullWidth
+            sx={{ maxWidth: { xs: "100%", sm: 340 } }}
             InputProps={{
-              startAdornment: ( <InputAdornment position="start"> <SearchRoundedIcon sx={{ color: verde }} /> </InputAdornment> ),
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchRoundedIcon sx={{ color: verde }} />
+                </InputAdornment>
+              ),
               sx: { borderRadius: "999px", bgcolor: "#fff", height: 34 },
             }}
           />
         </Card>
       </Box>
 
-      <Box sx={{ width: "100%", maxWidth: "1100px" }}>
+      {/* Acordeones por carrera */}
+      <Box sx={{ width: "100%", maxWidth: "920px" }}>
         {careerCards.map((career) => {
           const students = groupedStudents[career.id] || [];
           if (searchTerm.trim() && students.length === 0) return null;
 
-          // 🚨 LÓGICA DE DETECCIÓN REAL POR CARRERA 🚨
-          // Buscamos si algún estudiante de ESTA carrera tiene incidencias o observaciones nuevas
           const studentsWithAlert = students.filter(
             (s: any) => s.hasUnreadIncidents === true || s.hasUnreadObservations === true
           );
-          
-          let careerAni = "none";
 
+          let careerAni = "none";
           if (studentsWithAlert.length > 0) {
-            // Obtenemos el nivel máximo de alerta en esta carrera
-            const maxIncidents = Math.max(...studentsWithAlert.map((s: any) => s.incidentCount || 0));
-            const hasObservations = studentsWithAlert.some((s: any) => s.hasUnreadObservations);
+            const maxIncidents = Math.max(
+              ...studentsWithAlert.map((s: any) => s.incidentCount || 0)
+            );
+            const hasObservations = studentsWithAlert.some(
+              (s: any) => s.hasUnreadObservations
+            );
 
             if (maxIncidents >= 3) careerAni = "emergencyShakeRojo 0.4s infinite";
             else if (maxIncidents === 2) careerAni = "emergencyShakeNaranja 0.6s infinite";
@@ -105,24 +164,46 @@ export default function GeneralListSection({
             <Accordion
               key={career.id}
               sx={{
-                mb: 2, borderRadius: "15px !important",
+                mb: 2,
+                borderRadius: "15px !important",
                 borderLeft: `8px solid ${career.color ?? "#90a4ae"}`,
-                overflow: "hidden"
+                overflow: "hidden",
               }}
             >
-              <AccordionSummary 
+              <AccordionSummary
                 expandIcon={<ExpandMoreIcon />}
-                sx={{ 
-                  animation: careerAni, // ⚡ AQUÍ ES DONDE VIBRA LA CARRERA ⚡
-                  transition: 'all 0.2s ease',
-                  '&.Mui-expanded': { minHeight: 48 }
+                sx={{
+                  animation: careerAni,
+                  transition: "all 0.2s ease",
+                  "&.Mui-expanded": { minHeight: 48 },
+                  px: { xs: 1.5, sm: 2 },
                 }}
               >
-                <Box sx={{ display: "flex", alignItems: "center", width: "100%", justifyContent: "space-between", pr: 2 }}>
-                  <Typography sx={{ fontWeight: 900, fontSize: '1.1rem' }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    width: "100%",
+                    justifyContent: "space-between",
+                    pr: 1,
+                    gap: 1,
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontWeight: 900,
+                      fontSize: { xs: "0.9rem", sm: "1rem", md: "1.1rem" },
+                    }}
+                  >
                     {career.name} {studentsWithAlert.length > 0 && "🚨"}
                   </Typography>
-                  <Typography sx={{ fontWeight: 700 }}>
+                  <Typography
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: { xs: "0.8rem", sm: "0.9rem" },
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     {students.length} estudiantes
                   </Typography>
                 </Box>
@@ -140,35 +221,85 @@ export default function GeneralListSection({
                           onClick={() => {
                             onViewProfile(s.id);
                             if (isTarget) {
-                                onMarkIncidentsSeen?.(Number(s.id)); 
+                              onMarkIncidentsSeen?.(Number(s.id));
                             }
                           }}
                           sx={{
                             cursor: "pointer",
-                            py: 1.5, px: 4,
-                            bgcolor: s.hasUnreadIncidents ? "#fff5f5" : (s.hasUnreadObservations ? "#f0f7ff" : sem.bg),
+                            py: { xs: 1, sm: 1.5 },
+                            px: { xs: 1.5, sm: 4 },
+                            bgcolor: s.hasUnreadIncidents
+                              ? "#fff5f5"
+                              : s.hasUnreadObservations
+                              ? "#f0f7ff"
+                              : sem.bg,
                             borderLeft: `6px solid ${isTarget ? career.color : sem.border}`,
-                            "&:hover": { bgcolor: "#eee" }
+                            "&:hover": { bgcolor: "#eee" },
                           }}
                         >
                           <ListItemText
                             primary={
-                              <Box sx={{ display: "flex", gap: 1.5, alignItems: 'center' }}>
-                                <Typography sx={{ fontWeight: 800 }}>{getStudentName(s)}</Typography>
-                                {isTarget && <Chip label="NUEVO" size="small" color="error" sx={{ fontWeight: 900, animation: 'pulse 1s infinite' }} />}
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  gap: 1,
+                                  alignItems: "center",
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                <Typography
+                                  sx={{
+                                    fontWeight: 800,
+                                    fontSize: { xs: "0.85rem", sm: "1rem" },
+                                  }}
+                                >
+                                  {getStudentName(s)}
+                                </Typography>
+                                {isTarget && (
+                                  <Chip
+                                    label="NUEVO"
+                                    size="small"
+                                    color="error"
+                                    sx={{ fontWeight: 900, animation: "pulse 1s infinite" }}
+                                  />
+                                )}
                                 {s.incidentCount > 0 && (
-                                  <Box sx={{ bgcolor: s.incidentCount >= 3 ? '#FF3131' : '#FF8C00', color: "#fff", px: 1, borderRadius: "5px", fontSize: 11, fontWeight: 900 }}>
+                                  <Box
+                                    sx={{
+                                      bgcolor:
+                                        s.incidentCount >= 3 ? "#FF3131" : "#FF8C00",
+                                      color: "#fff",
+                                      px: 1,
+                                      borderRadius: "5px",
+                                      fontSize: { xs: 10, sm: 11 },
+                                      fontWeight: 900,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
                                     INCIDENCIAS: {s.incidentCount}
                                   </Box>
                                 )}
                                 {s.observationCount > 0 && (
-                                  <Box sx={{ bgcolor: "#1976d2", color: "#fff", px: 1, borderRadius: "5px", fontSize: 11, fontWeight: 900 }}>
+                                  <Box
+                                    sx={{
+                                      bgcolor: "#1976d2",
+                                      color: "#fff",
+                                      px: 1,
+                                      borderRadius: "5px",
+                                      fontSize: { xs: 10, sm: 11 },
+                                      fontWeight: 900,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
                                     OBSERVACIONES: {s.observationCount}
                                   </Box>
                                 )}
                               </Box>
                             }
                             secondary={`DNI: ${s.dni ?? s.cedula ?? "-"}`}
+                            secondaryTypographyProps={{
+                              fontSize: { xs: "0.75rem", sm: "0.875rem" },
+                            }}
                           />
                         </ListItem>
                         {idx < students.length - 1 && <Divider />}

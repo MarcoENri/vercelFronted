@@ -3,9 +3,10 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "antd/dist/reset.css";
 
-// --- CAMBIO: Limpia la sesión al cargar el archivo por primera vez ---
-sessionStorage.clear(); 
-// ---------------------------------------------------------------------
+// Escala global — hace todo 13% más compacto sin tocar nada más
+document.documentElement.style.fontSize = "13.5px";
+
+sessionStorage.clear();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

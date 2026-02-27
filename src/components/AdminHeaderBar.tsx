@@ -1,58 +1,24 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import {
-  Box,
-  Typography,
-  Button,
-  IconButton,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  Divider,
-  Divider as MuiDivider,
-  FormControl,
-  Select,
-  InputLabel,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Chip,
+  Box, Typography, Button, IconButton, Divider,
+  FormControl, Select, InputLabel, MenuItem,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Paper, Chip, Tooltip,
 } from "@mui/material";
 
-// Iconos
-import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import PersonAddAlt1RoundedIcon from "@mui/icons-material/PersonAddAlt1Rounded";
 import GroupRoundedIcon from "@mui/icons-material/GroupRounded";
-import ExitToAppRoundedIcon from "@mui/icons-material/ExitToAppRounded";
-import AccountCircleRoundedIcon from "@mui/icons-material/AccountCircleRounded";
-import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
-import AssessmentRoundedIcon from "@mui/icons-material/AssessmentRounded";
-import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
+import MenuIcon from "@mui/icons-material/Menu";
 
 export interface CareerStatDto {
-  key: string;
-  label: string;
-  total: number;
-  reprobados: number;
-  color: string;
+  key: string; label: string; total: number; reprobados: number; color: string;
 }
-
 export interface PeriodHeaderDto {
-  id: number;
-  name: string;
-  isActive?: boolean;
+  id: number; name: string; isActive?: boolean;
 }
-
 export interface ActivePeriodState {
-  loading: boolean;
-  periodName?: string | null;
+  loading: boolean; periodName?: string | null;
 }
 
 type Props = {
@@ -75,125 +41,260 @@ type Props = {
   onChangePeriod: (val: number | "ALL") => void;
   onReloadPeriods: () => void;
   careerStats: CareerStatDto[];
-  onOpenSidebar?: () => void; // Marcada como opcional
+  onOpenSidebar?: () => void;
+  openStatsModal?: boolean;
+  onCloseStatsModal?: () => void;
 };
 
 export default function AdminHeaderBar({
-  verde,
-  importing,
-  onOpenAssignCareer,
-  onOpenCreateUser,
-  onRefresh,
-  onLogout,
-  userMenuAnchor,
-  openUserMenu,
-  onOpenMenu,
-  onCloseMenu,
-  onOpenProfile,
-  onUploadFile,
-  onOpenPeriodModal,
-  periods,
-  selectedPeriodId,
-  activePeriod,
-  onChangePeriod,
-  onReloadPeriods,
-  careerStats,
-  // onOpenSidebar no se usa visualmente aquí
+  verde, importing, onOpenAssignCareer, onOpenCreateUser,
+  periods, selectedPeriodId, activePeriod, onChangePeriod,
+  careerStats, onOpenSidebar, openStatsModal = false, onCloseStatsModal,
 }: Props) {
-  const [openStatsModal, setOpenStatsModal] = useState(false);
-
   const { totalGlobal, totalReprobadosGlobal } = useMemo(() => {
-    const total = careerStats.reduce((acc, curr) => acc + (curr.total ?? 0), 0);
-    const repro = careerStats.reduce((acc, curr) => acc + (curr.reprobados ?? 0), 0);
+    const total = careerStats.reduce((acc, c) => acc + (c.total ?? 0), 0);
+    const repro = careerStats.reduce((acc, c) => acc + (c.reprobados ?? 0), 0);
     return { totalGlobal: total, totalReprobadosGlobal: repro };
   }, [careerStats]);
 
-  const whiteBtn = {
-    borderRadius: "999px", px: 2, py: 0.7, fontWeight: 700, textTransform: "none",
-    bgcolor: "#fff", color: verde, "&:hover": { bgcolor: "#f4f4f4" },
-    display: { xs: "none", md: "flex" }
-  };
+  // ✅ FIX: valor seguro para el Select — evita crash "out-of-range value"
+  const safeSelectedPeriodId = useMemo(() => {
+    if (selectedPeriodId === "ALL") return "ALL";
+    const exists = periods.some((p) => p.id === selectedPeriodId);
+    return exists ? selectedPeriodId : "ALL";
+  }, [selectedPeriodId, periods]);
+
+  // ✅ FIX: nombre del período nunca undefined/null — evita crash en <Text> de antd
+  const safePeriodName = useMemo(() => {
+    if (activePeriod.loading) return "Cargando...";
+    if (!activePeriod.periodName) return "SIN PERIODO";
+    return String(activePeriod.periodName);
+  }, [activePeriod.loading, activePeriod.periodName]);
 
   const whiteSelectStyles = {
-    color: "#fff", ".MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.5)" },
+    color: "#fff",
+    ".MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.5)" },
     "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#fff" },
     "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#fff" },
     ".MuiSvgIcon-root": { color: "#fff" },
+    fontSize: { xs: "0.78rem", sm: "0.875rem" },
+  };
+
+  const actionBtnStyle = {
+    borderRadius: "999px",
+    fontWeight: 700,
+    textTransform: "none",
+    bgcolor: "#fff",
+    color: verde,
+    "&:hover": { bgcolor: "#f4f4f4" },
+    fontSize: { xs: "0.72rem", sm: "0.8rem", md: "0.875rem" },
+    px: { xs: 1.2, sm: 1.8, md: 2 },
+    py: { xs: 0.4, sm: 0.6, md: 0.7 },
+    minWidth: { xs: "auto", sm: "auto" },
+    whiteSpace: "nowrap",
   };
 
   return (
     <>
-      <Box component="header" sx={{ backgroundColor: verde, p: "10px 20px", display: "flex", alignItems: "center", position: "sticky", top: 0, zIndex: 1100, borderBottom: "4px solid #fff", gap: 2 }}>
-        
-        {/* Icono de hamburguesa eliminado */}
+      <Box
+        component="header"
+        sx={{
+          backgroundColor: verde,
+          boxSizing: "border-box",
+          px: { xs: 1, sm: 2, md: 3 },
+          pt: { xs: 1, sm: 0 },
+          pb: { xs: 1, sm: 0 },
+          display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
+          alignItems: { xs: "stretch", sm: "center" },
+          justifyContent: "space-between",
+          position: "sticky",
+          top: 0,
+          zIndex: 1100,
+          borderBottom: "4px solid #fff",
+          gap: { xs: 0.8, sm: 0 },
+          minHeight: { xs: "auto", sm: 61 },
+        }}
+      >
+        {/* FILA 1 en mobile / todo en una fila en desktop */}
+        <Box sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: { xs: 0.5, sm: 1, md: 2 },
+          flex: { xs: "none", sm: 1 },
+        }}>
+          {/* Hamburguesa — solo móvil */}
+          {onOpenSidebar && (
+            <IconButton
+              onClick={onOpenSidebar}
+              sx={{ color: "#fff", display: { xs: "flex", sm: "none" }, p: 0.5 }}
+            >
+              <MenuIcon fontSize="small" />
+            </IconButton>
+          )}
 
-        <Typography sx={{ color: "#fff", fontWeight: 800, fontSize: "1.1rem", whiteSpace: "nowrap" }}>
-          SISTEMA <Box component="span" sx={{ fontWeight: 300, opacity: 0.9 }}>ACADÉMICO</Box>
-        </Typography>
+          <Typography sx={{
+            color: "#fff", fontWeight: 800, whiteSpace: "nowrap",
+            fontSize: { xs: "0.82rem", sm: "0.95rem", md: "1.1rem" },
+          }}>
+            SISTEMA <Box component="span" sx={{ fontWeight: 300, opacity: 0.9 }}>ACADÉMICO</Box>
+          </Typography>
 
-        {/* SELECTOR DE PERIODO CENTRAL */}
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flex: 1, justifyContent: "center" }}>
-          <Box sx={{ display: { xs: "none", lg: "block" }, textAlign: "right" }}>
-            <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.8)", display: "block", mb: -0.5 }}>Período Activo:</Typography>
-            <Typography variant="body2" sx={{ color: "#fff", fontWeight: 700 }}>{activePeriod.loading ? "Cargando..." : activePeriod.periodName ?? "SIN PERIODO"}</Typography>
+          {/* SELECTOR PERÍODO — desktop */}
+          <Box sx={{
+            display: { xs: "none", sm: "flex" },
+            alignItems: "center",
+            gap: 1.5,
+            flex: 1,
+            justifyContent: "center",
+          }}>
+            <Box sx={{ display: { xs: "none", lg: "block" }, textAlign: "right" }}>
+              <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.8)", display: "block", mb: -0.5 }}>
+                Período Activo:
+              </Typography>
+              {/* ✅ FIX: usa safePeriodName — nunca null/undefined */}
+              <Typography variant="body2" sx={{ color: "#fff", fontWeight: 700 }}>
+                {safePeriodName}
+              </Typography>
+            </Box>
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel sx={{ color: "#fff", opacity: 0.8, "&.Mui-focused": { color: "#fff" } }}>
+                Filtro de período
+              </InputLabel>
+              <Select
+                value={safeSelectedPeriodId}
+                label="Filtro de período"
+                onChange={(e) => onChangePeriod(e.target.value as any)}
+                sx={whiteSelectStyles}
+              >
+                <MenuItem value="ALL"><strong>Vista Histórica</strong></MenuItem>
+                {(periods ?? []).map((p) => (
+                  <MenuItem key={p.id} value={p.id}>
+                    {/* ✅ FIX: String() garantiza que nunca se pase undefined a <Text> */}
+                    {String(p.name ?? "")}{p.isActive ? " (Actual)" : ""}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Box>
 
-          <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel id="period-label" sx={{ color: "#fff", opacity: 0.8, "&.Mui-focused": { color: "#fff" } }}>Filtro de período</InputLabel>
-            <Select labelId="period-label" value={selectedPeriodId} label="Filtro de período" onChange={(e) => onChangePeriod(e.target.value as any)} sx={whiteSelectStyles}>
+          {/* BOTONES */}
+          <Box sx={{ display: { xs: "none", sm: "flex" }, gap: 1, alignItems: "center", flexShrink: 0 }}>
+            <Button onClick={onOpenAssignCareer} startIcon={<GroupRoundedIcon />} variant="contained"
+              sx={{ ...actionBtnStyle, display: { xs: "none", lg: "flex" } }}>
+              Asignar
+            </Button>
+            <Button onClick={onOpenCreateUser} startIcon={<PersonAddAlt1RoundedIcon />} variant="contained"
+              sx={{ ...actionBtnStyle, display: { xs: "none", lg: "flex" } }}>
+              Nuevo Usuario
+            </Button>
+            <Tooltip title="Asignar Carrera" arrow>
+              <Button onClick={onOpenAssignCareer} variant="contained"
+                sx={{ ...actionBtnStyle, display: { xs: "none", sm: "flex", lg: "none" }, minWidth: 36, width: 36, height: 36, p: 0, borderRadius: "50%" }}>
+                <GroupRoundedIcon sx={{ fontSize: 18 }} />
+              </Button>
+            </Tooltip>
+            <Tooltip title="Nuevo Usuario" arrow>
+              <Button onClick={onOpenCreateUser} variant="contained"
+                sx={{ ...actionBtnStyle, display: { xs: "none", sm: "flex", lg: "none" }, minWidth: 36, width: 36, height: 36, p: 0, borderRadius: "50%" }}>
+                <PersonAddAlt1RoundedIcon sx={{ fontSize: 18 }} />
+              </Button>
+            </Tooltip>
+          </Box>
+        </Box>
+
+        {/* FILA 2 — solo en mobile */}
+        <Box sx={{
+          display: { xs: "flex", sm: "none" },
+          alignItems: "center",
+          gap: 0.8,
+          pb: 0.5,
+        }}>
+          <FormControl size="small" sx={{ flex: 1 }}>
+            <InputLabel sx={{ color: "#fff", opacity: 0.8, fontSize: "0.75rem", "&.Mui-focused": { color: "#fff" } }}>
+              Filtro de período
+            </InputLabel>
+            <Select
+              value={safeSelectedPeriodId}
+              label="Filtro de período"
+              onChange={(e) => onChangePeriod(e.target.value as any)}
+              sx={{ ...whiteSelectStyles, fontSize: "0.75rem" }}
+            >
               <MenuItem value="ALL"><strong>Vista Histórica</strong></MenuItem>
-              {periods.map((p) => (
-                <MenuItem key={p.id} value={p.id}>{p.name} {p.isActive ? " (Actual)" : ""}</MenuItem>
+              {(periods ?? []).map((p) => (
+                <MenuItem key={p.id} value={p.id} sx={{ fontSize: "0.8rem" }}>
+                  {String(p.name ?? "")}{p.isActive ? " (Actual)" : ""}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
-          <IconButton onClick={onReloadPeriods} size="small" sx={{ color: "#fff", border: "1px solid rgba(255,255,255,0.3)" }}><RefreshRoundedIcon fontSize="small" /></IconButton>
-        </Box>
 
-        <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-          <Button onClick={onOpenAssignCareer} startIcon={<GroupRoundedIcon />} variant="contained" sx={whiteBtn}>Asignar</Button>
-          <Button onClick={onOpenCreateUser} startIcon={<PersonAddAlt1RoundedIcon />} variant="contained" sx={whiteBtn}>Nuevo Usuario</Button>
-          <Divider orientation="vertical" flexItem sx={{ bgcolor: "rgba(255,255,255,0.3)", mx: 1 }} />
-          <IconButton onClick={onRefresh} sx={{ color: "#fff" }} title="Refrescar Datos"><RefreshRoundedIcon /></IconButton>
-          <IconButton onClick={onOpenMenu} sx={{ bgcolor: openUserMenu ? "rgba(255,255,255,0.2)" : "transparent", color: "#fff", transition: "0.3s" }}><AccountCircleRoundedIcon /></IconButton>
+          <Tooltip title="Asignar Carrera" arrow>
+            <Button onClick={onOpenAssignCareer} variant="contained"
+              sx={{ ...actionBtnStyle, minWidth: 36, width: 36, height: 36, p: 0, borderRadius: "50%" }}>
+              <GroupRoundedIcon sx={{ fontSize: 18 }} />
+            </Button>
+          </Tooltip>
+          <Tooltip title="Nuevo Usuario" arrow>
+            <Button onClick={onOpenCreateUser} variant="contained"
+              sx={{ ...actionBtnStyle, minWidth: 36, width: 36, height: 36, p: 0, borderRadius: "50%" }}>
+              <PersonAddAlt1RoundedIcon sx={{ fontSize: 18 }} />
+            </Button>
+          </Tooltip>
         </Box>
-
-        {/* MENU DESPLEGABLE */}
-        <Menu anchorEl={userMenuAnchor} open={openUserMenu} onClose={onCloseMenu} transformOrigin={{ horizontal: 'right', vertical: 'top' }} anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}>
-          <MenuItem onClick={() => { onCloseMenu(); onOpenProfile(); }}><ListItemIcon><AccountCircleRoundedIcon fontSize="small" /></ListItemIcon>Mi Perfil</MenuItem>
-          <MenuItem onClick={() => { onCloseMenu(); onOpenPeriodModal(); }}><ListItemIcon><EventAvailableRoundedIcon fontSize="small" /></ListItemIcon>Gestión de Períodos</MenuItem>
-          <MenuItem component="label"><ListItemIcon><UploadFileRoundedIcon fontSize="small" /></ListItemIcon>{importing ? "Importando..." : "Cargar Excel (.xlsx)"}<input type="file" hidden accept=".xlsx" onChange={(e) => { const file = e.target.files?.[0]; if (file) onUploadFile(file); }} /></MenuItem>
-          <MuiDivider />
-          <MenuItem onClick={() => { onCloseMenu(); setOpenStatsModal(true); }}><ListItemIcon><AssessmentRoundedIcon fontSize="small" sx={{ color: verde }} /></ListItemIcon><Box><Typography variant="body2" fontWeight={700}>Estadísticas</Typography><Typography variant="caption" color="text.secondary">Reporte de rendimiento</Typography></Box></MenuItem>
-          <MuiDivider />
-          <MenuItem onClick={() => { onCloseMenu(); onLogout(); }} sx={{ color: "error.main" }}><ListItemIcon><ExitToAppRoundedIcon fontSize="small" color="error" /></ListItemIcon>Cerrar Sesión</MenuItem>
-        </Menu>
       </Box>
 
-      {/* --- MODAL DE ESTADÍSTICAS --- */}
-      <Dialog open={openStatsModal} onClose={() => setOpenStatsModal(false)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ bgcolor: verde, color: "#fff", fontWeight: 700 }}>Resumen Académico General</DialogTitle>
+      {/* MODAL ESTADÍSTICAS */}
+      <Dialog open={openStatsModal} onClose={onCloseStatsModal} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ bgcolor: verde, color: "#fff", fontWeight: 700 }}>
+          Resumen Académico General
+        </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: "flex", gap: 4, mb: 3, p: 2.5, bgcolor: "#f8f9fa", borderRadius: 3, border: "1px solid #eee" }}>
-            <Box><Typography variant="caption" color="text.secondary" fontWeight={700}>ESTUDIANTES TOTALES</Typography><Typography variant="h4" fontWeight={900} color={verde}>{totalGlobal}</Typography></Box>
-            <Divider orientation="vertical" flexItem /><Box><Typography variant="caption" color="text.secondary" fontWeight={700}>ALUMNOS REPROBADOS</Typography><Typography variant="h4" fontWeight={900} color="error.main">{totalReprobadosGlobal}</Typography></Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary" fontWeight={700}>ESTUDIANTES TOTALES</Typography>
+              <Typography variant="h4" fontWeight={900} color={verde}>{totalGlobal}</Typography>
+            </Box>
+            <Divider orientation="vertical" flexItem />
+            <Box>
+              <Typography variant="caption" color="text.secondary" fontWeight={700}>ALUMNOS REPROBADOS</Typography>
+              <Typography variant="h4" fontWeight={900} color="error.main">{totalReprobadosGlobal}</Typography>
+            </Box>
           </Box>
           <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
             <Table size="small">
-              <TableHead sx={{ bgcolor: "#fafafa" }}><TableRow><TableCell sx={{ fontWeight: 800 }}>Carrera / Facultad</TableCell><TableCell align="center" sx={{ fontWeight: 800 }}>Matriculados</TableCell><TableCell align="center" sx={{ fontWeight: 800 }}>Reprobados</TableCell></TableRow></TableHead>
+              <TableHead sx={{ bgcolor: "#fafafa" }}>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 800 }}>Carrera / Facultad</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 800 }}>Matriculados</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 800 }}>Reprobados</TableCell>
+                </TableRow>
+              </TableHead>
               <TableBody>
-                {careerStats.map((stat) => (
+                {(careerStats ?? []).map((stat) => (
                   <TableRow key={stat.key} hover>
-                    <TableCell><Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}><Box sx={{ width: 12, height: 12, borderRadius: "3px", bgcolor: stat.color }} /><Typography variant="body2" fontWeight={600}>{stat.label}</Typography></Box></TableCell>
-                    <TableCell align="center"><Chip label={stat.total} size="small" sx={{ fontWeight: 900, bgcolor: "#E8F5E9", color: "#2E7D32" }} /></TableCell>
-                    <TableCell align="center"><Chip label={stat.reprobados} size="small" sx={{ fontWeight: 900, bgcolor: "#FFEBEE", color: "#C62828" }} /></TableCell>
+                    <TableCell>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                        <Box sx={{ width: 12, height: 12, borderRadius: "3px", bgcolor: stat.color }} />
+                        {/* ✅ FIX: String() evita que label undefined crashee <Text> de antd */}
+                        <Typography variant="body2" fontWeight={600}>{String(stat.label ?? "")}</Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Chip label={stat.total ?? 0} size="small" sx={{ fontWeight: 900, bgcolor: "#E8F5E9", color: "#2E7D32" }} />
+                    </TableCell>
+                    <TableCell align="center">
+                      <Chip label={stat.reprobados ?? 0} size="small" sx={{ fontWeight: 900, bgcolor: "#FFEBEE", color: "#C62828" }} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </TableContainer>
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}><Button onClick={() => setOpenStatsModal(false)} variant="outlined" sx={{ fontWeight: 700 }}>Entendido</Button></DialogActions>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={onCloseStatsModal} variant="outlined" sx={{ fontWeight: 700 }}>Entendido</Button>
+        </DialogActions>
       </Dialog>
     </>
   );

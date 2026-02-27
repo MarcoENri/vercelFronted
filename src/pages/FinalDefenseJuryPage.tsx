@@ -12,31 +12,24 @@ import {
   Card,
   CardContent,
   Chip,
-  Avatar,
-  Drawer,
-  IconButton,
   Divider,
   Stack,
   Paper,
-  Tooltip,
+  Snackbar,
+  Alert,
+  InputAdornment,
+  Fade,
+  Zoom,
 } from "@mui/material";
 
 import {
   Logout as LogoutOutlined,
-  Close as CloseIcon,
-  PhotoCamera as PhotoCameraIcon,
-  Person as PersonIcon,
-  Email as EmailIcon,
-  Badge as BadgeIcon,
-  AccountCircle as AccountCircleIcon,
   Download as DownloadIcon,
   Visibility as VisibilityIcon,
   Assessment as AssessmentIcon,
 } from "@mui/icons-material";
 
-import { useNavigate } from "react-router-dom";
-
-// 🟢 PASO 1 — Importar el tipo de usuario correcto
+import { useNavigate, useLocation } from "react-router-dom";
 import type { UserResponse } from "../services/adminUserService";
 
 import {
@@ -51,64 +44,55 @@ import {
 import CoordinatorSidebar from "../components/Coordinatorsidebar/Coordinatorsidebar";
 import TutorSidebar from "../components/TutorSidebar/TutorSidebar";
 
-
 const VERDE_INSTITUCIONAL = "#008B8B";
 
 type StudentEvalState = {
-  rubricScore: number;
-  extraScore: number;
+  rubricScore: string;
+  extraScore: string;
   observations: string;
 };
 
 export default function FinalDefenseJuryPage() {
   const nav = useNavigate();
+  const location = useLocation();
+  const isCoordinator = location.pathname.includes("coordinator");
 
   const [loading, setLoading] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  // ─── Loading por estudiante — solo ese botón muestra "Guardando..." ───────
+  const [savingStudentId, setSavingStudentId] = useState<number | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-
   const [bookings, setBookings] = useState<FinalDefenseBookingDto[]>([]);
   const [openEval, setOpenEval] = useState(false);
   const [activeBooking, setActiveBooking] = useState<FinalDefenseBookingDto | null>(null);
   const [evaluations, setEvaluations] = useState<FinalDefenseEvaluationDto[]>([]);
-
   const [studentEvals, setStudentEvals] = useState<Record<number, StudentEvalState>>({});
-  const [error, setError] = useState("");
 
-  // Detectar si es coordinador
-  const isCoordinator = useMemo(() => {
-    const userStr = localStorage.getItem("user");
-    if (!userStr) return false;
-    try {
-      const user = JSON.parse(userStr);
-      const roles = user.roles || [];
-      return roles.some((r: string) => r.includes("COORDINATOR") || r.includes("ADMIN"));
-    } catch {
-      return false;
-    }
-  }, []);
+  // ─── Snackbar ─────────────────────────────────────────────────────────────
+  const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: "success" | "error" | "warning" }>({
+    open: false, msg: "", severity: "success",
+  });
+  const notify = (msg: string, severity: "success" | "error" | "warning" = "success") =>
+    setSnack({ open: true, msg, severity });
+  const closeSnack = () => setSnack((s) => ({ ...s, open: false }));
 
-  // 🟢 PASO 2 — Reemplazo de juryInfo para usar fullName y UserResponse
+  // ─── Dialog cerrar sesión ──────────────────────────────────────────────────
+  const [logoutOpen, setLogoutOpen] = useState(false);
+
   const juryInfo = useMemo(() => {
     const userStr = localStorage.getItem("user");
-
-    if (!userStr) {
-      return { username: "", name: "", email: "", role: "Jurado" };
-    }
-
+    if (!userStr) return { username: "", name: "Usuario", email: "", role: isCoordinator ? "Coordinador" : "Tutor" };
     try {
       const user: UserResponse = JSON.parse(userStr);
-
-      return {
-        username: user.username,
-        name: user.fullName ?? "",
-        email: user.email ?? "",
-        role: (user.roles && user.roles[0]) ? user.roles[0].replace("ROLE_", "") : "Jurado",
-      };
+      const role = isCoordinator
+        ? "Coordinador"
+        : user.roles && user.roles.length > 0
+          ? user.roles[0].replace("ROLE_", "")
+          : "Tutor";
+      return { username: user.username || "", name: user.fullName || "Usuario", email: user.email || "", role };
     } catch {
-      return { username: "", name: "", email: "", role: "Jurado" };
+      return { username: "", name: "Usuario", email: "", role: isCoordinator ? "Coordinador" : "Tutor" };
     }
-  }, []);
+  }, [isCoordinator]);
 
   const periodId = useMemo(() => {
     const ls = localStorage.getItem("periodId");
@@ -116,6 +100,14 @@ export default function FinalDefenseJuryPage() {
     const n = Number(ls);
     return Number.isFinite(n) ? n : null;
   }, []);
+
+  const getInitials = () => {
+    const name = juryInfo?.name?.trim();
+    if (!name) return "U";
+    const parts = name.split(" ").filter(Boolean);
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return parts[0][0].toUpperCase();
+  };
 
   const load = async () => {
     setLoading(true);
@@ -129,40 +121,27 @@ export default function FinalDefenseJuryPage() {
 
   useEffect(() => {
     load();
-    const photoKey = isCoordinator ? "coordinatorPhoto" : "juryPhoto";
+    const photoKey = isCoordinator ? "coordinatorPhoto" : "tutorPhoto";
     const savedPhoto = localStorage.getItem(photoKey);
     if (savedPhoto) setPhotoPreview(savedPhoto);
-  }, [isCoordinator]);
+  }, []);
 
-  const handleLogout = () => {
-    if (!confirm("¿Cerrar sesión?")) return;
-    localStorage.clear();
-    nav("/");
-  };
-
-  const handlePhotoChange = (photoData: string) => {
-    setPhotoPreview(photoData);
-  };
+  const handleLogout = () => setLogoutOpen(true);
+  const confirmLogout = () => { localStorage.clear(); nav("/"); };
+  const handlePhotoChange = (photo: string) => setPhotoPreview(photo);
 
   const openEvaluate = async (b: FinalDefenseBookingDto) => {
     setActiveBooking(b);
     setOpenEval(true);
-    setError("");
-
     setLoading(true);
     try {
       const detail = await juryFinalBookingDetail(b.id);
       setActiveBooking(detail.booking);
       setEvaluations(detail.evaluations ?? []);
-
       if (detail.booking.students?.length) {
         const initial: Record<number, StudentEvalState> = {};
         detail.booking.students.forEach((s) => {
-          initial[s.id] = {
-            rubricScore: 0,
-            extraScore: 0,
-            observations: "",
-          };
+          initial[s.id] = { rubricScore: "", extraScore: "", observations: "" };
         });
         setStudentEvals(initial);
       }
@@ -171,32 +150,46 @@ export default function FinalDefenseJuryPage() {
     }
   };
 
+  // ─── Actualiza un campo de un estudiante sin re-montar el input ───────────
+  const updateEval = (studentId: number, field: keyof StudentEvalState, value: string) => {
+    setStudentEvals((prev) => ({
+      ...prev,
+      [studentId]: { ...prev[studentId], [field]: value },
+    }));
+  };
+
+  const getNumeric = (val: string) =>
+    val === "" ? 0 : Math.max(0, Math.min(50, Number(val)));
+
+  const scoreColor = (val: string) => {
+    const n = getNumeric(val);
+    if (n >= 35) return "#2e7d32";
+    if (n >= 20) return VERDE_INSTITUCIONAL;
+    return "#d32f2f";
+  };
+
   const saveStudentEvaluation = async (studentId: number) => {
     const ev = studentEvals[studentId];
     if (!ev) return;
-
-    if (ev.rubricScore < 0 || ev.rubricScore > 50)
-      return alert("Rúbrica debe estar entre 0 y 50");
-
-    if (ev.extraScore < 0 || ev.extraScore > 50)
-      return alert("Extra debe estar entre 0 y 50");
-
-    setLoading(true);
+    const rubric = getNumeric(ev.rubricScore);
+    const extra = getNumeric(ev.extraScore);
+    if (rubric < 0 || rubric > 50) return notify("Rúbrica debe estar entre 0 y 50", "warning");
+    if (extra < 0 || extra > 50) return notify("Extra debe estar entre 0 y 50", "warning");
+    setSavingStudentId(studentId);
     try {
       await juryFinalEvaluate(activeBooking!.id, {
         studentId,
-        rubricScore: ev.rubricScore,
-        extraScore: ev.extraScore,
+        rubricScore: rubric,
+        extraScore: extra,
         observations: ev.observations || null,
       });
-
       const detail = await juryFinalBookingDetail(activeBooking!.id);
       setEvaluations(detail.evaluations ?? []);
-      alert("Nota guardada correctamente ✅");
+      notify("Nota guardada correctamente ✅");
     } catch (e: any) {
-      alert(e?.response?.data?.message || "Error al guardar");
+      notify(e?.response?.data?.message || "Error al guardar", "error");
     } finally {
-      setLoading(false);
+      setSavingStudentId(null);
     }
   };
 
@@ -212,395 +205,353 @@ export default function FinalDefenseJuryPage() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
+      notify("Acta descargada correctamente");
     } catch (e: any) {
-      alert(e?.response?.data?.message ?? "No se pudo descargar el acta");
+      notify(e?.response?.data?.message ?? "No se pudo descargar el acta", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  // 🟢 PASO 3 — Reemplazo de getInitials() para manejar fullName
-  const getInitials = () => {
-    const name = juryInfo?.name?.trim();
-
-    if (!name) return "U"; // Usuario genérico
-
-    const parts = name.split(" ").filter(Boolean);
-
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    }
-
-    return parts[0][0].toUpperCase();
+  // ─── Sx del TextField de nota — depende del valor actual ─────────────────
+  const scoreFieldSx = (val: string) => {
+    const color = scoreColor(val);
+    return {
+      "& .MuiOutlinedInput-root": {
+        borderRadius: "14px",
+        bgcolor: "#fff",
+        "& input": {
+          fontWeight: 900,
+          fontSize: "1.5rem",
+          color,
+          textAlign: "center",
+          transition: "color 0.3s ease",
+        },
+        "& fieldset": { borderColor: "#e0e0e0", borderWidth: "1.5px" },
+        "&:hover fieldset": { borderColor: color },
+        "&.Mui-focused fieldset": { borderColor: color, borderWidth: "2px" },
+      },
+      "& .MuiInputLabel-root": { fontWeight: 800, color: "#999" },
+      "& .MuiInputLabel-root.Mui-focused": { color },
+    };
   };
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
-      {/* SIDEBAR PARA COORDINADOR */}
-      {isCoordinator ? (
-  <CoordinatorSidebar
-    coordinatorName={juryInfo.name}
-    coordinatorInitials={getInitials()}
-    coordinatorEmail={juryInfo.email}
-    coordinatorUsername={juryInfo.username}
-    coordinatorRole={juryInfo.role}
-    photoPreview={photoPreview}
-    onLogout={handleLogout}
-    onPhotoChange={handlePhotoChange}
-  />
-) : (
-  <TutorSidebar
-    onLogout={handleLogout}
-    verde={VERDE_INSTITUCIONAL}
-    periodId={periodId}
-  />
-)}
-      {/* CONTENIDO PRINCIPAL */}
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          minHeight: "100vh",
-          background: "#f5f7f9",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {/* HEADER */}
-        <Box
-          sx={{
-            bgcolor: VERDE_INSTITUCIONAL,
-            color: "white",
-            py: 2,
-            px: 3,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-          }}
-        >
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 900 }}>
-                Defensa Final
-              </Typography>
-              <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                Panel de Jurado {periodId ? `— Periodo: ${periodId}` : ""}
-              </Typography>
-            </Box>
 
-            {/* AVATAR SOLO SI NO ES COORDINADOR */}
-            {!isCoordinator && (
-              <IconButton onClick={() => setDrawerOpen(true)} sx={{ p: 0 }}>
-                <Avatar
-                  src={photoPreview || undefined}
-                  sx={{
-                    width: 40,
-                    height: 40,
-                    bgcolor: "white",
-                    color: VERDE_INSTITUCIONAL,
-                    fontWeight: 900,
-                  }}
-                >
-                  {getInitials()}
-                </Avatar>
-              </IconButton>
-            )}
-          </Box>
+      {/* SIDEBAR según rol */}
+      {isCoordinator ? (
+        <CoordinatorSidebar
+          coordinatorName={juryInfo.name}
+          coordinatorInitials={getInitials()}
+          coordinatorEmail={juryInfo.email}
+          coordinatorUsername={juryInfo.username}
+          coordinatorRole={juryInfo.role}
+          photoPreview={photoPreview}
+          onLogout={handleLogout}
+          onPhotoChange={handlePhotoChange}
+        />
+      ) : (
+        <TutorSidebar
+          onLogout={handleLogout}
+          verde={VERDE_INSTITUCIONAL}
+          periodId={periodId}
+          tutorName={juryInfo.name}
+          tutorInitials={getInitials()}
+          tutorEmail={juryInfo.email}
+          tutorUsername={juryInfo.username}
+          tutorRole={juryInfo.role}
+          photoPreview={photoPreview}
+          onPhotoChange={handlePhotoChange}
+        />
+      )}
+
+      {/* CONTENIDO PRINCIPAL */}
+      <Box component="main" sx={{ flexGrow: 1, minHeight: "100vh", background: "#f5f7f9", display: "flex", flexDirection: "column" }}>
+
+        {/* HEADER — sticky */}
+        <Box sx={{
+          position: "sticky", top: 0, zIndex: 1100, flexShrink: 0,
+          bgcolor: VERDE_INSTITUCIONAL, color: "white",
+          py: 2, px: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        }}>
+          <Typography variant="h6" sx={{ fontWeight: 900 }}>Defensa Final</Typography>
+          <Typography variant="caption" sx={{ opacity: 0.9 }}>
+            Panel de Jurado {periodId ? `— Periodo: ${periodId}` : ""}
+          </Typography>
         </Box>
 
         {/* CONTENIDO */}
-        <Box sx={{ flex: 1, py: 3 }}>
+        <Box sx={{ flex: 1, py: 3, overflowY: "auto" }}>
           <Container maxWidth="lg">
-            <Card
-              sx={{
-                borderRadius: "25px",
-                boxShadow: "0 10px 30px rgba(0,0,0,0.04)",
-                border: "1px solid #e1e8ed",
-              }}
-            >
+            <Card sx={{ borderRadius: "25px", boxShadow: "0 10px 30px rgba(0,0,0,0.04)", border: "1px solid #e1e8ed" }}>
               <CardContent sx={{ p: 3 }}>
-                <Typography
-                  variant="h6"
-                  sx={{ fontWeight: 900, color: VERDE_INSTITUCIONAL, mb: 2.5 }}
-                >
+                <Typography variant="h6" sx={{ fontWeight: 900, color: VERDE_INSTITUCIONAL, mb: 2.5 }}>
                   Mis Defensas Finales ({bookings.length})
                 </Typography>
                 {bookings.map((b) => (
-                  <Paper
-                    key={b.id}
-                    elevation={0}
-                    sx={{
-                      p: 2.5,
-                      mb: 2,
-                      border: "2px solid #e9ecef",
-                      borderRadius: "20px",
-                    }}
+                  <Paper key={b.id} elevation={0}
+                    sx={{ p: 2.5, mb: 2, border: "2px solid #e9ecef", borderRadius: "20px", transition: "box-shadow 0.2s", "&:hover": { boxShadow: "0 8px 24px rgba(0,139,139,0.1)" } }}
                   >
                     <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
-                      <Typography sx={{ fontWeight: 900, fontSize: "1.1rem" }}>
-                        Defensa #{b.id}
-                      </Typography>
-                      <Chip
-                        label="Defensa Final"
-                        size="small"
-                        sx={{
-                          bgcolor: VERDE_INSTITUCIONAL,
-                          color: "white",
-                          fontWeight: 900,
-                        }}
-                      />
+                      <Typography sx={{ fontWeight: 900, fontSize: "1.1rem" }}>Defensa #{b.id}</Typography>
+                      <Chip label="Defensa Final" size="small" sx={{ bgcolor: VERDE_INSTITUCIONAL, color: "white", fontWeight: 900 }} />
                     </Box>
                     <Stack spacing={0.8} sx={{ mb: 2 }}>
-                      <Typography variant="body2">
-                        <strong>Proyecto:</strong> {b.projectName || "-"}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Estudiantes:</strong>{" "}
-                        {b.students?.map((s) => s.fullName).join(" / ")}
-                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}><strong>Proyecto:</strong> {b.projectName || "-"}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}><strong>Estudiantes:</strong> {b.students?.map((s) => s.fullName).join(" / ")}</Typography>
                     </Stack>
                     <Box sx={{ display: "flex", gap: 1.5 }}>
-                      <Button
-                        onClick={() => openEvaluate(b)}
-                        variant="contained"
-                        startIcon={<AssessmentIcon />}
-                        sx={{
-                          bgcolor: VERDE_INSTITUCIONAL,
-                          borderRadius: "50px",
-                          fontWeight: 900,
-                        }}
-                      >
+                      <Button onClick={() => openEvaluate(b)} variant="contained" startIcon={<AssessmentIcon />}
+                        sx={{ bgcolor: VERDE_INSTITUCIONAL, borderRadius: "50px", fontWeight: 900, textTransform: "none" }}>
                         Evaluar
                       </Button>
-                      <Button
-                        onClick={() => handleDownloadActa(b.id)}
-                        variant="outlined"
-                        startIcon={<DownloadIcon />}
-                        sx={{
-                          color: VERDE_INSTITUCIONAL,
-                          borderColor: VERDE_INSTITUCIONAL,
-                          borderRadius: "50px",
-                          fontWeight: 900,
-                        }}
-                      >
+                      <Button onClick={() => handleDownloadActa(b.id)} variant="outlined" startIcon={<DownloadIcon />}
+                        sx={{ color: VERDE_INSTITUCIONAL, borderColor: VERDE_INSTITUCIONAL, borderRadius: "50px", fontWeight: 900, textTransform: "none" }}>
                         Acta
                       </Button>
                     </Box>
                   </Paper>
                 ))}
+                {!bookings.length && !loading && (
+                  <Typography sx={{ color: "#aaa", fontStyle: "italic", textAlign: "center", py: 4 }}>
+                    No tienes defensas asignadas aún.
+                  </Typography>
+                )}
               </CardContent>
             </Card>
           </Container>
         </Box>
 
-        {/* FOOTER */}
-        <Box
-          sx={{
-            bgcolor: VERDE_INSTITUCIONAL,
-            color: "white",
-            py: 2,
-            textAlign: "center",
-          }}
-        >
-          <Typography variant="body2">© 2025 - Panel de Jurado</Typography>
+        {/* FOOTER — sticky */}
+        <Box sx={{
+          position: "sticky", bottom: 0, zIndex: 1100, flexShrink: 0,
+          bgcolor: VERDE_INSTITUCIONAL, color: "white",
+          py: 1, textAlign: "center", boxShadow: "0 -2px 8px rgba(0,0,0,0.1)",
+        }}>
+          <Typography variant="caption" sx={{ opacity: 0.9, fontSize: "11px" }}>
+            © 2025 - Panel de Jurado
+          </Typography>
         </Box>
       </Box>
 
-      {/* MODAL EVALUAR */}
-      <Dialog
-        open={openEval}
-        onClose={() => setOpenEval(false)}
-        maxWidth="lg"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: "25px" } }}
+      {/* ── MODAL EVALUAR ──────────────────────────────────────────────────────── */}
+      <Dialog open={openEval} onClose={() => setOpenEval(false)} maxWidth="lg" fullWidth
+        TransitionComponent={Fade}
+        PaperProps={{ sx: { borderRadius: "25px", overflow: "hidden" } }}
       >
-        <DialogTitle
-          sx={{
-            fontWeight: 900,
-            color: VERDE_INSTITUCIONAL,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          Evaluar Defensa {activeBooking ? `#${activeBooking.id}` : ""}
+        <DialogTitle sx={{
+          fontWeight: 900, color: VERDE_INSTITUCIONAL,
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          borderBottom: "1px solid #f1f2f6", py: 2, px: 3,
+        }}>
+          <Typography sx={{ fontWeight: 900, fontSize: "1.1rem" }}>
+            Evaluar Defensa {activeBooking ? `#${activeBooking.id}` : ""}
+          </Typography>
           <Button
             onClick={async () => {
               try {
                 const blob = await juryFinalDownloadRubricPdf(activeBooking!.id);
                 window.open(window.URL.createObjectURL(blob), "_blank");
               } catch {
-                alert("No se pudo abrir rúbrica.");
+                notify("No se pudo abrir rúbrica.", "error");
               }
             }}
-            variant="text"
-            startIcon={<VisibilityIcon />}
-            sx={{ color: VERDE_INSTITUCIONAL, fontWeight: 900 }}
+            variant="outlined" startIcon={<VisibilityIcon />}
+            sx={{ color: VERDE_INSTITUCIONAL, borderColor: VERDE_INSTITUCIONAL, borderRadius: "50px", fontWeight: 900, textTransform: "none" }}
           >
             Ver Rúbrica PDF
           </Button>
         </DialogTitle>
 
-        <DialogContent dividers sx={{ p: 3, bgcolor: "#f8f9fa" }}>
+        <DialogContent sx={{ p: 3, bgcolor: "#f8f9fa" }}>
           {activeBooking && (
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns:
-                  activeBooking.students.length > 1 ? "1fr 1fr" : "1fr",
-                gap: 3,
-              }}
-            >
+            <Box sx={{
+              display: "grid",
+              gridTemplateColumns: activeBooking.students.length > 1 ? "1fr 1fr" : "1fr",
+              gap: 3,
+            }}>
               {activeBooking.students.map((s) => {
-                const ev = studentEvals[s.id];
-                const total = (ev?.rubricScore || 0) + (ev?.extraScore || 0);
-                const verdict = total >= 70 ? "APROBADO" : "REPROBADO";
+                const ev = studentEvals[s.id] ?? { rubricScore: "", extraScore: "", observations: "" };
+                const rubricNum = getNumeric(ev.rubricScore);
+                const extraNum = getNumeric(ev.extraScore);
+                const total = rubricNum + extraNum;
+                // ✅ Regla institucional: rúbrica mínimo 35/50 para aprobar
+                const verdict = rubricNum >= 35 && total >= 70 ? "APROBADO" : "REPROBADO";
+                const verdictColor = verdict === "APROBADO" ? "#2e7d32" : "#d32f2f";
                 const evalsStudent = evaluations.filter((e) => e.studentId === s.id);
 
                 return (
-                  <Paper
-                    key={s.id}
-                    sx={{
-                      p: 3,
-                      borderRadius: 4,
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                    }}
-                  >
-                    <Typography
-                      variant="h6"
-                      sx={{ fontWeight: 900, mb: 0.5, color: VERDE_INSTITUCIONAL }}
-                    >
-                      {s.fullName}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                      Identificación: {s.dni}
-                    </Typography>
+                  <Paper key={s.id} sx={{ p: 3, borderRadius: "20px", boxShadow: "0 4px 20px rgba(0,0,0,0.06)", border: "1px solid #eee" }}>
 
-                    <Box
-                      sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}
-                    >
-                      <TextField
-                        label="Rúbrica (0–50)"
-                        type="number"
-                        fullWidth
-                        value={ev?.rubricScore || 0}
-                        onChange={(e) =>
-                          setStudentEvals({
-                            ...studentEvals,
-                            [s.id]: {
-                              ...ev,
-                              rubricScore: Number(e.target.value),
-                            },
-                          })
-                        }
-                      />
-                      <TextField
-                        label="Extra (0–50)"
-                        type="number"
-                        fullWidth
-                        value={ev?.extraScore || 0}
-                        onChange={(e) =>
-                          setStudentEvals({
-                            ...studentEvals,
-                            [s.id]: {
-                              ...ev,
-                              extraScore: Number(e.target.value),
-                            },
-                          })
-                        }
-                      />
-                    </Box>
-
-                    <Box
-                      sx={{
-                        mt: 2,
-                        p: 2,
-                        bgcolor: total >= 70 ? "#f0fff4" : "#fff5f5",
-                        borderRadius: 2,
-                        textAlign: "center",
-                      }}
-                    >
-                      <Typography sx={{ fontWeight: 900, fontSize: "1.1rem" }}>
-                        Total: {total}/100 —{" "}
-                        <span
-                          style={{
-                            color: verdict === "APROBADO" ? "#2e7d32" : "#d32f2f",
-                          }}
-                        >
-                          {verdict}
-                        </span>
+                    {/* Encabezado estudiante */}
+                    <Box sx={{ mb: 3, pb: 2, borderBottom: `3px solid ${VERDE_INSTITUCIONAL}22` }}>
+                      <Typography variant="h6" sx={{ fontWeight: 900, color: VERDE_INSTITUCIONAL }}>
+                        {s.fullName}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: "#888", fontWeight: 700, mt: 0.3 }}>
+                        Identificación: <span style={{ color: "#555", fontWeight: 900 }}>{s.dni}</span>
                       </Typography>
                     </Box>
 
+                    {/* Inputs nota */}
+                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, mb: 1 }}>
+
+                      {/* Rúbrica */}
+                      <Box>
+                        <TextField
+                          label="Rúbrica"
+                          type="number"
+                          fullWidth
+                          value={ev.rubricScore}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw === "" || raw === "-") { updateEval(s.id, "rubricScore", ""); return; }
+                            const n = Math.min(50, Math.max(0, Number(raw)));
+                            updateEval(s.id, "rubricScore", String(n));
+                          }}
+                          inputProps={{ min: 0, max: 50 }}
+                          InputProps={{
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <Typography sx={{ fontWeight: 900, color: "#ccc", fontSize: "1rem" }}>/50</Typography>
+                              </InputAdornment>
+                            ),
+                          }}
+                          sx={scoreFieldSx(ev.rubricScore)}
+                        />
+                        {/* Barra progreso */}
+                        <Box sx={{ mt: 0.8, height: 4, borderRadius: 99, bgcolor: "#f0f0f0", overflow: "hidden" }}>
+                          <Box sx={{
+                            height: "100%", borderRadius: 99,
+                            bgcolor: scoreColor(ev.rubricScore),
+                            width: `${(rubricNum / 50) * 100}%`,
+                            transition: "width 0.35s cubic-bezier(0.4,0,0.2,1), background-color 0.3s ease",
+                          }} />
+                        </Box>
+                        {/* Aviso mínimo institucional */}
+                        {rubricNum > 0 && rubricNum < 35 && (
+                          <Typography variant="caption" sx={{ color: "#d32f2f", fontWeight: 800, mt: 0.5, display: "block", fontSize: "0.7rem" }}>
+                            ⚠ Mínimo requerido: 35/50
+                          </Typography>
+                        )}
+                      </Box>
+
+                      {/* Extra */}
+                      <Box>
+                        <TextField
+                          label="Extra"
+                          type="number"
+                          fullWidth
+                          value={ev.extraScore}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw === "" || raw === "-") { updateEval(s.id, "extraScore", ""); return; }
+                            const n = Math.min(50, Math.max(0, Number(raw)));
+                            updateEval(s.id, "extraScore", String(n));
+                          }}
+                          inputProps={{ min: 0, max: 50 }}
+                          InputProps={{
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <Typography sx={{ fontWeight: 900, color: "#ccc", fontSize: "1rem" }}>/50</Typography>
+                              </InputAdornment>
+                            ),
+                          }}
+                          sx={scoreFieldSx(ev.extraScore)}
+                        />
+                        {/* Barra progreso */}
+                        <Box sx={{ mt: 0.8, height: 4, borderRadius: 99, bgcolor: "#f0f0f0", overflow: "hidden" }}>
+                          <Box sx={{
+                            height: "100%", borderRadius: 99,
+                            bgcolor: scoreColor(ev.extraScore),
+                            width: `${(extraNum / 50) * 100}%`,
+                            transition: "width 0.35s cubic-bezier(0.4,0,0.2,1), background-color 0.3s ease",
+                          }} />
+                        </Box>
+                      </Box>
+                    </Box>
+
+                    {/* Total animado */}
+                    <Box sx={{
+                      mt: 2, mb: 2.5, p: 2,
+                      bgcolor: verdict === "APROBADO" ? "#f0fff4" : "#fff5f5",
+                      borderRadius: "14px", textAlign: "center",
+                      border: `1.5px solid ${verdictColor}22`,
+                      transition: "background-color 0.4s ease",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 1,
+                    }}>
+                      <Typography component="span" sx={{ fontWeight: 900, fontSize: "1.2rem", color: "#333" }}>
+                        Total:
+                      </Typography>
+                      <Typography component="span" sx={{ color: verdictColor, fontSize: "1.6rem", fontWeight: 900, transition: "color 0.3s ease", lineHeight: 1 }}>
+                        {rubricNum + extraNum}
+                      </Typography>
+                      <Typography component="span" sx={{ color: "#bbb", fontWeight: 700, fontSize: "1rem" }}>
+                        /100
+                      </Typography>
+                      <Chip label={verdict} size="small"
+                        sx={{ bgcolor: verdictColor, color: "#fff", fontWeight: 900, fontSize: "0.75rem", transition: "background-color 0.3s ease" }}
+                      />
+                    </Box>
+
+                    {/* Observaciones */}
                     <TextField
                       label="Observaciones"
-                      fullWidth
-                      multiline
-                      minRows={2}
-                      sx={{ mt: 2 }}
+                      fullWidth multiline minRows={2}
                       placeholder="Comentarios sobre el desempeño..."
-                      value={ev?.observations || ""}
-                      onChange={(e) =>
-                        setStudentEvals({
-                          ...studentEvals,
-                          [s.id]: {
-                            ...ev,
-                            observations: e.target.value,
-                          },
-                        })
-                      }
+                      value={ev.observations}
+                      onChange={(e) => updateEval(s.id, "observations", e.target.value)}
+                      sx={{
+                        mb: 2.5,
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: "14px",
+                          "& fieldset": { borderColor: "#e0e0e0" },
+                          "&:hover fieldset": { borderColor: VERDE_INSTITUCIONAL },
+                          "&.Mui-focused fieldset": { borderColor: VERDE_INSTITUCIONAL },
+                        },
+                        "& .MuiInputLabel-root": { fontWeight: 800 },
+                        "& .MuiInputLabel-root.Mui-focused": { color: VERDE_INSTITUCIONAL },
+                        "& textarea": { fontWeight: 700 },
+                      }}
                     />
 
-                    <Box sx={{ mt: 3, mb: 2 }}>
-                      <Typography
-                        variant="subtitle2"
-                        sx={{ fontWeight: 900, mb: 1, color: "text.secondary" }}
-                      >
+                    {/* Otros jurados */}
+                    <Box sx={{ mb: 2.5, p: 2, bgcolor: "#fafafa", borderRadius: "12px", border: "1px solid #eee" }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 1, color: "#777", fontSize: "0.72rem", letterSpacing: "0.5px" }}>
                         CALIFICACIONES DE OTROS JURADOS
                       </Typography>
                       <Divider sx={{ mb: 1.5 }} />
                       {evalsStudent.length > 0 ? (
                         evalsStudent.map((e) => (
-                          <Box
-                            key={e.id}
-                            sx={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              mb: 0.5,
-                            }}
-                          >
-                            <Typography variant="body2">• {e.juryName}</Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                              {e.totalScore}/100
-                            </Typography>
+                          <Box key={e.id} sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>• {e.juryName}</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 900, color: VERDE_INSTITUCIONAL }}>{e.totalScore}/100</Typography>
                           </Box>
                         ))
                       ) : (
-                        <Typography variant="caption" color="text.disabled">
+                        <Typography variant="caption" sx={{ color: "#ccc", fontWeight: 700 }}>
                           Aún no hay otras evaluaciones.
                         </Typography>
                       )}
                     </Box>
 
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      sx={{
-                        mt: 1,
-                        bgcolor: VERDE_INSTITUCIONAL,
-                        color: "white",
-                        fontWeight: 900,
-                        borderRadius: "50px",
-                        py: 1.2,
-                        "&:hover": { bgcolor: "#006666" },
-                      }}
+                    {/* Guardar */}
+                    <Button fullWidth variant="contained"
+                      disabled={savingStudentId === s.id}
                       onClick={() => saveStudentEvaluation(s.id)}
+                      sx={{
+                        bgcolor: VERDE_INSTITUCIONAL, color: "white",
+                        fontWeight: 900, borderRadius: "50px",
+                        py: 1.4, textTransform: "none", fontSize: "0.95rem",
+                        boxShadow: `0 6px 20px ${VERDE_INSTITUCIONAL}44`,
+                        "&:hover": { bgcolor: "#006666", transform: "scale(1.02)" },
+                        transition: "all 0.2s ease",
+                      }}
                     >
-                      Guardar Nota
+                      {savingStudentId === s.id ? "Guardando..." : "Guardar Nota"}
                     </Button>
                   </Paper>
                 );
@@ -608,58 +559,54 @@ export default function FinalDefenseJuryPage() {
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2.5, bgcolor: "#f8f9fa" }}>
-          <Button
-            onClick={() => setOpenEval(false)}
-            sx={{ fontWeight: 900, color: "text.secondary" }}
-          >
+        <DialogActions sx={{ p: 2.5, bgcolor: "#f8f9fa", borderTop: "1px solid #f1f2f6" }}>
+          <Button onClick={() => setOpenEval(false)}
+            sx={{ fontWeight: 900, color: "#888", borderRadius: "50px", px: 3, textTransform: "none" }}>
             Cerrar Modal
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* DRAWER PERFIL SOLO PARA NO-COORDINADORES */}
-      {!isCoordinator && (
-        <Drawer
-          anchor="right"
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          PaperProps={{ sx: { width: 320 } }}
-        >
-          <Box sx={{ p: 3 }}>
-            <Typography
-              variant="h6"
-              sx={{ fontWeight: 900, mb: 2, color: VERDE_INSTITUCIONAL }}
-            >
-              Mi Perfil
-            </Typography>
-            <Avatar
-              src={photoPreview || undefined}
-              sx={{
-                width: 80,
-                height: 80,
-                mx: "auto",
-                mb: 2,
-                bgcolor: VERDE_INSTITUCIONAL,
-              }}
-            >
-              {getInitials()}
-            </Avatar>
-            <Typography align="center" sx={{ fontWeight: 900 }}>
-              {juryInfo.name}
-            </Typography>
-            <Divider sx={{ my: 2 }} />
-            <Button
-              fullWidth
-              onClick={handleLogout}
-              color="error"
-              startIcon={<LogoutOutlined />}
-            >
-              Cerrar Sesión
-            </Button>
+      {/* ── DIALOG CERRAR SESIÓN ─────────────────────────────────────────────── */}
+      <Dialog open={logoutOpen} onClose={() => setLogoutOpen(false)} maxWidth="xs" fullWidth
+        PaperProps={{ sx: { borderRadius: "16px", p: 1 } }}
+      >
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.5, pb: 1 }}>
+          <Box sx={{ width: 40, height: 40, borderRadius: "50%", bgcolor: "rgba(0,139,139,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <LogoutOutlined sx={{ color: VERDE_INSTITUCIONAL, fontSize: 20 }} />
           </Box>
-        </Drawer>
-      )}
+          <Typography sx={{ fontWeight: 800, fontSize: "1.1rem" }}>Cerrar sesión</Typography>
+        </DialogTitle>
+        <DialogContent sx={{ pb: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            ¿Estás seguro de que deseas cerrar sesión? Tu sesión actual se terminará.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button onClick={() => setLogoutOpen(false)} variant="outlined" fullWidth
+            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, borderColor: "#ddd", color: "#555", "&:hover": { borderColor: "#bbb", bgcolor: "#f9f9f9" } }}>
+            Cancelar
+          </Button>
+          <Button onClick={confirmLogout} variant="contained" fullWidth
+            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, bgcolor: VERDE_INSTITUCIONAL, "&:hover": { bgcolor: "#006666" } }}>
+            Cerrar sesión
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── SNACKBAR centrado en pantalla ────────────────────────────────────── */}
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={3500}
+        onClose={closeSnack}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        TransitionComponent={Zoom}
+      >
+        <Alert onClose={closeSnack} severity={snack.severity} variant="filled"
+          sx={{ fontWeight: 700, borderRadius: "16px", minWidth: 320, boxShadow: "0 12px 40px rgba(0,0,0,0.2)", fontSize: "0.95rem" }}>
+          {snack.msg}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

@@ -32,6 +32,10 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Snackbar,
+  Alert,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import {
   ArrowBack as ArrowBackIcon,
@@ -40,6 +44,7 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   PersonAdd as PersonAddIcon,
+  Logout as LogoutIcon,
 } from "@mui/icons-material";
 import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -62,6 +67,25 @@ import { getActiveAcademicPeriod } from "../services/periodService";
 import CoordinatorSidebar from "../components/Coordinatorsidebar/Coordinatorsidebar";
 
 const VERDE_INSTITUCIONAL = "#008B8B";
+
+// ─── Intervalo de polling ────────────────────────────────────────────────────
+const POLLING_INTERVAL_MS = 10_000;
+
+// ─── Formatea ISO timestamp → "27 feb 2026" (sin hora) ──────────────────────
+function formatDate(raw: string): string {
+  if (!raw) return "—";
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw;
+    return d.toLocaleDateString("es-EC", {
+      day:   "2-digit",
+      month: "short",
+      year:  "numeric",
+    });
+  } catch {
+    return raw;
+  }
+}
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -132,6 +156,26 @@ export default function CoordinatorStudentDetailPage() {
   const [projectName, setProjectName] = useState("");
   const [selectedTutorId, setSelectedTutorId] = useState<number | "">("");
 
+  // ─── Snackbar de notificación ─────────────────────────────────────────────
+  const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: "success" | "error" | "warning" }>({
+    open: false, msg: "", severity: "success",
+  });
+  const notify = (msg: string, severity: "success" | "error" | "warning" = "success") =>
+    setSnack({ open: true, msg, severity });
+  const closeSnack = () => setSnack((s) => ({ ...s, open: false }));
+
+  // ─── Dialog de cierre de sesión ───────────────────────────────────────────
+  const [logoutOpen, setLogoutOpen] = useState(false);
+
+  // ─── Dialog confirmar eliminar incidencia ─────────────────────────────────
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; incId: number | null }>({
+    open: false, incId: null,
+  });
+
+  // ─── Responsive ────────────────────────────────────────────────────────────
+  const muiTheme = useTheme();
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down("md"));
+
   const { data, isLoading: loading, refetch: load } = useQuery<StudentDetailDto | null>({
     queryKey: ["studentDetail", id, periodId],
     queryFn: async () => {
@@ -148,51 +192,55 @@ export default function CoordinatorStudentDetailPage() {
       return await getStudentDetail(id, pid);
     },
     enabled: !!id,
+    refetchInterval: POLLING_INTERVAL_MS,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
     onError: () => {
-      alert("No se pudo cargar el estudiante");
+      notify("No se pudo cargar el estudiante", "error");
       nav("/coordinator", { replace: true });
-    }
+    },
   } as any);
 
   const incidentMutation = useMutation({
     mutationFn: (newInc: any) => createIncident(id!, periodId!, newInc),
     onSuccess: () => {
-      alert("Incidencia registrada");
+      notify("Incidencia registrada correctamente");
       queryClient.invalidateQueries({ queryKey: ["studentDetail", id] });
       queryClient.invalidateQueries({ queryKey: ["students"] });
       setIncidentOpen(false);
       setIncStage(""); setIncDate(null); setIncReason(""); setIncAction("");
     },
-    onError: (e: any) => alert(e?.response?.data?.message ?? "No se pudo registrar")
+    onError: (e: any) => notify(e?.response?.data?.message ?? "No se pudo registrar la incidencia", "error"),
   });
 
   const observationMutation = useMutation({
     mutationFn: (newObs: any) => createObservation(id!, periodId!, newObs),
     onSuccess: () => {
-      alert("Observación registrada");
+      notify("Observación registrada correctamente");
       queryClient.invalidateQueries({ queryKey: ["studentDetail", id] });
       setObsOpen(false);
       setObsText("");
-    }
+    },
   });
 
   const assignMutation = useMutation({
     mutationFn: (assignData: any) => assignProject(id!, periodId!, assignData),
     onSuccess: () => {
-      alert("Asignado correctamente");
+      notify("Proyecto asignado correctamente");
       queryClient.invalidateQueries({ queryKey: ["studentDetail", id] });
       queryClient.invalidateQueries({ queryKey: ["students"] });
       setAssignOpen(false);
-    }
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (incId: number) => deleteIncident(data!.id, incId, periodId!),
     onSuccess: (res) => {
-      alert(`Eliminada ✅ (Estado: ${res?.studentStatus ?? "OK"})`);
+      notify(`Incidencia eliminada — Estado: ${res?.studentStatus ?? "OK"}`);
       queryClient.invalidateQueries({ queryKey: ["studentDetail", id] });
       queryClient.invalidateQueries({ queryKey: ["students"] });
-    }
+    },
+    onError: (e: any) => notify(e?.response?.data?.message ?? "No se pudo eliminar", "error"),
   });
 
   useEffect(() => {
@@ -200,26 +248,37 @@ export default function CoordinatorStudentDetailPage() {
     if (savedPhoto) setPhotoPreview(savedPhoto);
   }, []);
 
-  const handleLogout = () => {
-    if (!confirm("¿Estás seguro de que deseas cerrar sesión?")) return;
-    logout();
-    nav("/");
+  const handleLogout = () => setLogoutOpen(true);
+  const confirmLogout = () => { logout(); nav("/"); };
+
+  // ─── Eliminar incidencia — abre dialog en vez de confirm() ───────────────
+  const handleDeleteIncident = (incId: number) => {
+    setDeleteDialog({ open: true, incId });
+  };
+
+  const confirmDeleteIncident = () => {
+    if (!deleteDialog.incId) return;
+    deleteMutation.mutate(deleteDialog.incId);
+    setDeleteDialog({ open: false, incId: null });
   };
 
   const openAssignModal = async () => {
     const pid = periodId || Number(localStorage.getItem("periodId"));
-    if (!pid) return alert("Falta periodId.");
+    if (!pid) return notify("Falta periodId.", "warning");
     try {
       const tuts = await listTutorsForCoordinator(pid as any);
       setTutors(tuts);
       setProjectName(data?.thesisProject ?? "");
       setSelectedTutorId((data?.tutorId ?? "") as any);
       setAssignOpen(true);
-    } catch (e: any) { alert(e?.response?.data?.message ?? "No se pudo cargar tutores"); }
+    } catch (e: any) {
+      notify(e?.response?.data?.message ?? "No se pudo cargar tutores", "error");
+    }
   };
 
   const handleCreateIncident = () => {
-    if (!incStage || !incDate || !incReason || !incAction) return alert("Completa todos los campos");
+    if (!incStage || !incDate || !incReason || !incAction)
+      return notify("Completa todos los campos", "warning");
     incidentMutation.mutate({
       stage: incStage,
       date: incDate.format("YYYY-MM-DD"),
@@ -229,27 +288,14 @@ export default function CoordinatorStudentDetailPage() {
   };
 
   const handleCreateObservation = () => {
-    if (!obsText) return alert("Escribe una observación");
+    if (!obsText) return notify("Escribe una observación", "warning");
     observationMutation.mutate({ text: obsText });
   };
 
   const handleAssignProject = () => {
-    if (!projectName.trim() || !selectedTutorId) return alert("Completa todos los campos");
+    if (!projectName.trim() || !selectedTutorId)
+      return notify("Completa todos los campos", "warning");
     assignMutation.mutate({ projectName: projectName.trim(), tutorId: selectedTutorId as number });
-  };
-
-  const handleDeleteIncident = (incId: number) => {
-    if (!confirm("¿Eliminar incidencia?")) return;
-    deleteMutation.mutate(incId);
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "-";
-    try {
-      const dateOnly = dateString.split("T")[0];
-      const [year, month, day] = dateOnly.split("-");
-      return `${day}/${month}/${year}`;
-    } catch { return dateString; }
   };
 
   const getDisplayName = () => coordinatorInfo?.name || coordinatorInfo?.username || "Usuario";
@@ -268,7 +314,8 @@ export default function CoordinatorStudentDetailPage() {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box sx={{ display: "flex", minHeight: "100vh" }}>
-        {/* SIDEBAR */}
+
+        {/* ── SIDEBAR ── */}
         <CoordinatorSidebar
           coordinatorName={getDisplayName()}
           coordinatorInitials={getInitials()}
@@ -280,7 +327,7 @@ export default function CoordinatorStudentDetailPage() {
           onPhotoChange={setPhotoPreview}
         />
 
-        {/* CONTENIDO PRINCIPAL */}
+        {/* ── CONTENIDO PRINCIPAL ── */}
         <Box
           component="main"
           sx={{
@@ -289,38 +336,40 @@ export default function CoordinatorStudentDetailPage() {
             background: "#f0f2f5",
             display: "flex",
             flexDirection: "column",
+            width: { xs: "100%", md: "calc(100% - 240px)" },
           }}
         >
-          {/* HEADER VERDE */}
+          {/* ── HEADER VERDE — sticky ── */}
           <Box
             sx={{
+              position: "sticky",
+              top: 0,
+              zIndex: 1100,
               bgcolor: VERDE_INSTITUCIONAL,
               color: "white",
-              py: 2,
-              px: 3,
-              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+              py: { xs: 1.5, md: 2 },
+              px: { xs: 2, md: 3 },
+              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+              display: "flex",
+              alignItems: "center",
+              gap: 1.5,
             }}
           >
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <Box>
-                <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.2 }}>
-                  Gestión de Estudiante
-                </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                  Panel del Coordinador
-                </Typography>
-              </Box>
-              </Box>
+            <Box>
+              <Typography
+                variant={isMobile ? "body1" : "h6"}
+                sx={{ fontWeight: 900, lineHeight: 1.2 }}
+              >
+                Gestión de Estudiante
+              </Typography>
+              <Typography variant="caption" sx={{ opacity: 0.9 }}>
+                Panel del Coordinador
+              </Typography>
+            </Box>
           </Box>
 
-          {/* CONTENIDO */}
-          <Box sx={{ flex: 1, py: 3 }}>
+          {/* ── CONTENIDO SCROLLEABLE ── */}
+          <Box sx={{ flex: 1, py: 3, px: { xs: 1, sm: 2, md: 0 } }}>
             <Container maxWidth="lg">
               <Card
                 sx={{
@@ -358,12 +407,7 @@ export default function CoordinatorStudentDetailPage() {
                     <Box>
                       <Typography
                         variant="caption"
-                        sx={{
-                          textTransform: "uppercase",
-                          fontWeight: 700,
-                          opacity: 0.8,
-                          letterSpacing: 1,
-                        }}
+                        sx={{ textTransform: "uppercase", fontWeight: 700, opacity: 0.8, letterSpacing: 1 }}
                       >
                         Detalles del Alumno
                       </Typography>
@@ -414,72 +458,37 @@ export default function CoordinatorStudentDetailPage() {
                       mb: 3,
                     }}
                   >
+                    {[
+                      { label: "Email",    value: data.email,        break: true },
+                      { label: "Carrera",  value: data.career },
+                      { label: "Proyecto", value: data.thesisProject || "No asignado", italic: !data.thesisProject },
+                    ].map(({ label, value, break: wb, italic }) => (
+                      <Paper
+                        key={label}
+                        elevation={0}
+                        sx={{ p: 2, bgcolor: "rgba(248,249,250,0.9)", borderRadius: 2, border: "1px solid #e9ecef" }}
+                      >
+                        <Typography variant="caption" sx={{ color: "#6c757d", fontWeight: 600 }}>
+                          {label}
+                        </Typography>
+                        <Typography
+                          variant="body1"
+                          sx={{
+                            fontWeight: 600,
+                            color: italic ? "#adb5bd" : "#212529",
+                            fontStyle: italic ? "italic" : "normal",
+                            wordBreak: wb ? "break-word" : undefined,
+                          }}
+                        >
+                          {value}
+                        </Typography>
+                      </Paper>
+                    ))}
                     <Paper
                       elevation={0}
-                      sx={{
-                        p: 2,
-                        bgcolor: "rgba(248, 249, 250, 0.9)",
-                        borderRadius: 2,
-                        border: "1px solid #e9ecef",
-                      }}
+                      sx={{ p: 2, bgcolor: "rgba(248,249,250,0.9)", borderRadius: 2, border: "1px solid #e9ecef" }}
                     >
-                      <Typography
-                        variant="caption"
-                        sx={{ color: "#6c757d", fontWeight: 600 }}
-                      >
-                        Email
-                      </Typography>
-                      <Typography
-                        variant="body1"
-                        sx={{
-                          fontWeight: 600,
-                          color: "#212529",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {data.email}
-                      </Typography>
-                    </Paper>
-                    <Paper
-                      elevation={0}
-                      sx={{
-                        p: 2,
-                        bgcolor: "rgba(248, 249, 250, 0.9)",
-                        borderRadius: 2,
-                        border: "1px solid #e9ecef",
-                      }}
-                    >
-                      <Typography
-                        variant="caption"
-                        sx={{ color: "#6c757d", fontWeight: 600 }}
-                      >
-                        Carrera
-                      </Typography>
-                      <Typography
-                        variant="body1"
-                        sx={{ fontWeight: 600, color: "#212529" }}
-                      >
-                        {data.career}
-                      </Typography>
-                    </Paper>
-                    <Paper
-                      elevation={0}
-                      sx={{
-                        p: 2,
-                        bgcolor: "rgba(248, 249, 250, 0.9)",
-                        borderRadius: 2,
-                        border: "1px solid #e9ecef",
-                      }}
-                    >
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          color: "#6c757d",
-                          fontWeight: 600,
-                          mb: 0.5,
-                          display: "block",
-                        }}
-                      >
+                      <Typography variant="caption" sx={{ color: "#6c757d", fontWeight: 600, mb: 0.5, display: "block" }}>
                         Estado
                       </Typography>
                       <Chip
@@ -489,32 +498,6 @@ export default function CoordinatorStudentDetailPage() {
                         sx={{ fontWeight: 700, borderRadius: "10px" }}
                       />
                     </Paper>
-                    <Paper
-                      elevation={0}
-                      sx={{
-                        p: 2,
-                        bgcolor: "rgba(248, 249, 250, 0.9)",
-                        borderRadius: 2,
-                        border: "1px solid #e9ecef",
-                      }}
-                    >
-                      <Typography
-                        variant="caption"
-                        sx={{ color: "#6c757d", fontWeight: 600 }}
-                      >
-                        Proyecto
-                      </Typography>
-                      <Typography
-                        variant="body1"
-                        sx={{
-                          fontWeight: 600,
-                          color: data.thesisProject ? "#212529" : "#adb5bd",
-                          fontStyle: data.thesisProject ? "normal" : "italic",
-                        }}
-                      >
-                        {data.thesisProject || "No asignado"}
-                      </Typography>
-                    </Paper>
                   </Box>
 
                   {/* TABS */}
@@ -523,14 +506,9 @@ export default function CoordinatorStudentDetailPage() {
                       value={tabValue}
                       onChange={(_, v) => setTabValue(v)}
                       sx={{
-                        "& .MuiTab-root": {
-                          fontWeight: 700,
-                          textTransform: "none",
-                        },
+                        "& .MuiTab-root": { fontWeight: 700, textTransform: "none" },
                         "& .Mui-selected": { color: VERDE_INSTITUCIONAL },
-                        "& .MuiTabs-indicator": {
-                          backgroundColor: VERDE_INSTITUCIONAL,
-                        },
+                        "& .MuiTabs-indicator": { backgroundColor: VERDE_INSTITUCIONAL },
                       }}
                     >
                       <Tab label={`Incidencias (${data.incidentCount})`} />
@@ -538,6 +516,7 @@ export default function CoordinatorStudentDetailPage() {
                     </Tabs>
                   </Box>
 
+                  {/* TAB — INCIDENCIAS */}
                   <TabPanel value={tabValue} index={0}>
                     <Box sx={{ py: 3 }}>
                       <Button
@@ -546,12 +525,7 @@ export default function CoordinatorStudentDetailPage() {
                         startIcon={<AddIcon />}
                         disabled={data.incidentCount >= 3}
                         onClick={() => setIncidentOpen(true)}
-                        sx={{
-                          mb: 2,
-                          borderRadius: "20px",
-                          textTransform: "none",
-                          fontWeight: 700,
-                        }}
+                        sx={{ mb: 2, borderRadius: "20px", textTransform: "none", fontWeight: 700 }}
                       >
                         Nueva incidencia
                       </Button>
@@ -559,89 +533,40 @@ export default function CoordinatorStudentDetailPage() {
                         <Table size="small">
                           <TableHead>
                             <TableRow>
-                              <TableCell
-                                sx={{
-                                  bgcolor: VERDE_INSTITUCIONAL,
-                                  color: "white",
-                                  fontWeight: 900,
-                                }}
-                              >
-                                Etapa
-                              </TableCell>
-                              <TableCell
-                                sx={{
-                                  bgcolor: VERDE_INSTITUCIONAL,
-                                  color: "white",
-                                  fontWeight: 900,
-                                }}
-                              >
-                                Fecha
-                              </TableCell>
-                              <TableCell
-                                sx={{
-                                  bgcolor: VERDE_INSTITUCIONAL,
-                                  color: "white",
-                                  fontWeight: 900,
-                                }}
-                              >
-                                Motivo
-                              </TableCell>
-                              <TableCell
-                                sx={{
-                                  bgcolor: VERDE_INSTITUCIONAL,
-                                  color: "white",
-                                  fontWeight: 900,
-                                }}
-                              >
-                                Acción
-                              </TableCell>
-                              <TableCell
-                                sx={{
-                                  bgcolor: VERDE_INSTITUCIONAL,
-                                  color: "white",
-                                  fontWeight: 900,
-                                  textAlign: "center",
-                                }}
-                              >
-                                Acciones
-                              </TableCell>
+                              {["Etapa", "Fecha", "Motivo", "Acción", "Acciones"].map((h) => (
+                                <TableCell
+                                  key={h}
+                                  sx={{
+                                    bgcolor: VERDE_INSTITUCIONAL,
+                                    color: "white",
+                                    fontWeight: 900,
+                                    textAlign: h === "Acciones" ? "center" : undefined,
+                                  }}
+                                >
+                                  {h}
+                                </TableCell>
+                              ))}
                             </TableRow>
                           </TableHead>
                           <TableBody>
                             {data.incidents?.length === 0 ? (
                               <TableRow>
-                                <TableCell
-                                  colSpan={5}
-                                  align="center"
-                                  sx={{ py: 4, color: "#777" }}
-                                >
+                                <TableCell colSpan={5} align="center" sx={{ py: 4, color: "#777" }}>
                                   No hay incidencias registradas
                                 </TableCell>
                               </TableRow>
                             ) : (
                               data.incidents?.map((inc: any) => (
-                                <TableRow
-                                  key={inc.id}
-                                  sx={{ "&:hover": { bgcolor: "#f5f5f5" } }}
-                                >
+                                <TableRow key={inc.id} sx={{ "&:hover": { bgcolor: "#f5f5f5" } }}>
                                   <TableCell>{inc.stage}</TableCell>
                                   <TableCell>{formatDate(inc.date)}</TableCell>
                                   <TableCell>{inc.reason}</TableCell>
                                   <TableCell>{inc.action}</TableCell>
                                   <TableCell align="center">
-                                    <Box
-                                      sx={{
-                                        display: "flex",
-                                        gap: 1,
-                                        justifyContent: "center",
-                                      }}
-                                    >
+                                    <Box sx={{ display: "flex", gap: 1, justifyContent: "center" }}>
                                       <IconButton
                                         size="small"
-                                        onClick={() => {
-                                          setEditingIncident(inc);
-                                          setEditIncOpen(true);
-                                        }}
+                                        onClick={() => { setEditingIncident(inc); setEditIncOpen(true); }}
                                         sx={{ color: VERDE_INSTITUCIONAL }}
                                       >
                                         <EditIcon fontSize="small" />
@@ -664,6 +589,7 @@ export default function CoordinatorStudentDetailPage() {
                     </Box>
                   </TabPanel>
 
+                  {/* TAB — OBSERVACIONES */}
                   <TabPanel value={tabValue} index={1}>
                     <Box sx={{ py: 3 }}>
                       <Button
@@ -685,52 +611,26 @@ export default function CoordinatorStudentDetailPage() {
                         <Table size="small">
                           <TableHead>
                             <TableRow>
-                              <TableCell
-                                sx={{
-                                  bgcolor: VERDE_INSTITUCIONAL,
-                                  color: "white",
-                                  fontWeight: 900,
-                                }}
-                              >
-                                Autor
-                              </TableCell>
-                              <TableCell
-                                sx={{
-                                  bgcolor: VERDE_INSTITUCIONAL,
-                                  color: "white",
-                                  fontWeight: 900,
-                                }}
-                              >
-                                Observación
-                              </TableCell>
-                              <TableCell
-                                sx={{
-                                  bgcolor: VERDE_INSTITUCIONAL,
-                                  color: "white",
-                                  fontWeight: 900,
-                                }}
-                              >
-                                Fecha
-                              </TableCell>
+                              {["Autor", "Observación", "Fecha"].map((h) => (
+                                <TableCell
+                                  key={h}
+                                  sx={{ bgcolor: VERDE_INSTITUCIONAL, color: "white", fontWeight: 900 }}
+                                >
+                                  {h}
+                                </TableCell>
+                              ))}
                             </TableRow>
                           </TableHead>
                           <TableBody>
                             {data.observations?.length === 0 ? (
                               <TableRow>
-                                <TableCell
-                                  colSpan={3}
-                                  align="center"
-                                  sx={{ py: 4, color: "#777" }}
-                                >
+                                <TableCell colSpan={3} align="center" sx={{ py: 4, color: "#777" }}>
                                   No hay observaciones registradas
                                 </TableCell>
                               </TableRow>
                             ) : (
                               data.observations?.map((obs: any) => (
-                                <TableRow
-                                  key={obs.id}
-                                  sx={{ "&:hover": { bgcolor: "#f5f5f5" } }}
-                                >
+                                <TableRow key={obs.id} sx={{ "&:hover": { bgcolor: "#f5f5f5" } }}>
                                   <TableCell>{obs.author}</TableCell>
                                   <TableCell>{obs.text}</TableCell>
                                   <TableCell>{formatDate(obs.createdAt)}</TableCell>
@@ -745,6 +645,25 @@ export default function CoordinatorStudentDetailPage() {
                 </CardContent>
               </Card>
             </Container>
+          </Box>
+
+          {/* ── FOOTER VERDE — sticky bottom ── */}
+          <Box
+            sx={{
+              position: "sticky",
+              bottom: 0,
+              zIndex: 1100,
+              bgcolor: VERDE_INSTITUCIONAL,
+              color: "white",
+              py: 1,
+              px: 3,
+              textAlign: "center",
+              boxShadow: "0 -2px 8px rgba(0,0,0,0.1)",
+            }}
+          >
+            <Typography variant="caption" sx={{ opacity: 0.9, fontSize: "11px" }}>
+              © 2026 INSTITUTO SUPERIOR TECNOLÓGICO SUDAMERICANO — SISTEMA DE CONTROL
+            </Typography>
           </Box>
         </Box>
       </Box>
@@ -816,7 +735,21 @@ export default function CoordinatorStudentDetailPage() {
               label="Fecha"
               value={incDate}
               onChange={(v) => setIncDate(v)}
-              slotProps={{ textField: { fullWidth: true, required: true } }}
+              slotProps={{
+                textField: { fullWidth: true, required: true },
+                popper: {
+                  sx: {
+                    "& .MuiDayCalendar-weekDayLabel": { fontSize: 0 },
+                    "& .MuiDayCalendar-weekDayLabel:nth-of-type(1)::after": { content: '"L"', fontSize: "0.75rem", fontWeight: 700 },
+                    "& .MuiDayCalendar-weekDayLabel:nth-of-type(2)::after": { content: '"M"', fontSize: "0.75rem", fontWeight: 700 },
+                    "& .MuiDayCalendar-weekDayLabel:nth-of-type(3)::after": { content: '"M"', fontSize: "0.75rem", fontWeight: 700 },
+                    "& .MuiDayCalendar-weekDayLabel:nth-of-type(4)::after": { content: '"J"', fontSize: "0.75rem", fontWeight: 700 },
+                    "& .MuiDayCalendar-weekDayLabel:nth-of-type(5)::after": { content: '"V"', fontSize: "0.75rem", fontWeight: 700 },
+                    "& .MuiDayCalendar-weekDayLabel:nth-of-type(6)::after": { content: '"S"', fontSize: "0.75rem", fontWeight: 700 },
+                    "& .MuiDayCalendar-weekDayLabel:nth-of-type(7)::after": { content: '"D"', fontSize: "0.75rem", fontWeight: 700 },
+                  },
+                },
+              }}
             />
             <TextField
               label="Motivo"
@@ -888,6 +821,117 @@ export default function CoordinatorStudentDetailPage() {
         studentId={data.id}
         incident={editingIncident}
       />
+
+      {/* ── DIALOG CONFIRMAR ELIMINAR INCIDENCIA ────────────────────────────── */}
+      <Dialog
+        open={deleteDialog.open}
+        onClose={() => setDeleteDialog({ open: false, incId: null })}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: "16px", p: 1 } }}
+      >
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.5, pb: 1 }}>
+          <Box
+            sx={{
+              width: 40, height: 40, borderRadius: "50%",
+              bgcolor: "rgba(211,47,47,0.1)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <DeleteIcon sx={{ color: "#d32f2f", fontSize: 20 }} />
+          </Box>
+          <Typography sx={{ fontWeight: 800, fontSize: "1.1rem" }}>
+            Eliminar incidencia
+          </Typography>
+        </DialogTitle>
+        <DialogContent sx={{ pb: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            ¿Estás seguro de que deseas eliminar esta incidencia? Esta acción no se puede deshacer.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button
+            onClick={() => setDeleteDialog({ open: false, incId: null })}
+            variant="outlined"
+            fullWidth
+            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, borderColor: "#ddd", color: "#555", "&:hover": { borderColor: "#bbb", bgcolor: "#f9f9f9" } }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={confirmDeleteIncident}
+            variant="contained"
+            color="error"
+            fullWidth
+            disabled={deleteMutation.isPending}
+            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700 }}
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── DIALOG CERRAR SESIÓN ─────────────────────────────────────────────── */}
+      <Dialog
+        open={logoutOpen}
+        onClose={() => setLogoutOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: "16px", p: 1 } }}
+      >
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.5, pb: 1 }}>
+          <Box
+            sx={{
+              width: 40, height: 40, borderRadius: "50%",
+              bgcolor: "rgba(0,139,139,0.1)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <LogoutIcon sx={{ color: VERDE_INSTITUCIONAL, fontSize: 20 }} />
+          </Box>
+          <Typography sx={{ fontWeight: 800, fontSize: "1.1rem" }}>Cerrar sesión</Typography>
+        </DialogTitle>
+        <DialogContent sx={{ pb: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            ¿Estás seguro de que deseas cerrar sesión? Tu sesión actual se terminará.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button
+            onClick={() => setLogoutOpen(false)}
+            variant="outlined"
+            fullWidth
+            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, borderColor: "#ddd", color: "#555", "&:hover": { borderColor: "#bbb", bgcolor: "#f9f9f9" } }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={confirmLogout}
+            variant="contained"
+            fullWidth
+            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, bgcolor: VERDE_INSTITUCIONAL, "&:hover": { bgcolor: "#006666" } }}
+          >
+            Cerrar sesión
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── SNACKBAR ─────────────────────────────────────────────────────────── */}
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={3500}
+        onClose={closeSnack}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <Alert
+          onClose={closeSnack}
+          severity={snack.severity}
+          variant="filled"
+          sx={{ fontWeight: 600, borderRadius: "12px", minWidth: 280 }}
+        >
+          {snack.msg}
+        </Alert>
+      </Snackbar>
     </LocalizationProvider>
   );
 }

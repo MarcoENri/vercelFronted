@@ -8,38 +8,64 @@ import {
   Space,
   Typography,
   Tag,
-  Popconfirm,
 } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api/api";
 import {
-  ArrowLeftOutlined,
   MailOutlined,
-  ReloadOutlined,
-  LogoutOutlined,
   EditOutlined,
   DeleteOutlined,
+  MenuOutlined,
 } from "@ant-design/icons";
 import { logout } from "../services/authService";
 
-// ✅ IMPORTES PARA REACTIVIDAD
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-
-// ✅ modal email
 import SendEmailModal from "../components/SendEmailModal";
-
-// ✅ modal editar incidencia + service eliminar
 import EditIncidentModal from "../components/EditIncidentModal";
 import { deleteIncident } from "../services/incidentManageService";
-
-// ✅ opcional: si ya tienes este service (lo usaste en coordinator)
 import { getActiveAcademicPeriod } from "../services/periodService";
+
+// ✅ SIDEBAR
+import AdminSidebar, { drawerWidth } from "../components/AdminSidebar";
+import { listCareerCards, type CareerCardDto } from "../services/adminCareerCardsService";
+import { useActivePeriod } from "../hooks/useActivePeriod";
+import { useTheme, useMediaQuery } from "@mui/material";
+
+// ✅ MUI para el dialog de logout y eliminar
+import {
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Box,
+} from "@mui/material";
+import LogoutIcon from "@mui/icons-material/Logout";
+import DeleteIcon from "@mui/icons-material/Delete";
+import { Typography as MuiTypography, Button as MuiButton } from "@mui/material";
 
 const { Title, Text } = Typography;
 const VERDE_INSTITUCIONAL = "#008B8B";
 
-/* ===================== TIPOS DE DATOS ===================== */
+// ─── Intervalo de polling: cada 10 segundos se re-fetcha automáticamente ───
+const POLLING_INTERVAL_MS = 10_000;
+
+// ─── Formatea ISO timestamp → "27 Feb 2026" (sin hora) ────────────────────
+function formatDate(raw: string): string {
+  if (!raw) return "—";
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw;
+    return d.toLocaleDateString("es-EC", {
+      day:   "2-digit",
+      month: "short",
+      year:  "numeric",
+    });
+  } catch {
+    return raw;
+  }
+}
+
 type IncidentDto = {
   id: number;
   stage: string;
@@ -79,28 +105,49 @@ export default function StudentDetailPage() {
   const nav = useNavigate();
   const [sp] = useSearchParams();
   const queryClient = useQueryClient();
+  const activePeriod = useActivePeriod();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
-  // ✅ periodId: query -> localStorage -> null
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // ✅ Dialog cerrar sesión
+  const [logoutOpen, setLogoutOpen] = useState(false);
+
+  // ✅ Dialog eliminar incidencia
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; incident: IncidentDto | null }>({
+    open: false, incident: null,
+  });
+
+  const selectedPeriodId: number | "ALL" = useMemo(() => {
+    const ls = localStorage.getItem("adminPeriodId");
+    if (ls && ls !== "ALL" && Number.isFinite(Number(ls))) return Number(ls);
+    return activePeriod.periodId ?? "ALL";
+  }, [activePeriod.periodId]);
+
+  const { data: careerCards = [] } = useQuery<CareerCardDto[]>({
+    queryKey: ["careerCards", selectedPeriodId],
+    queryFn: () => {
+      const pid = selectedPeriodId === "ALL" ? (activePeriod.periodId ?? undefined) : selectedPeriodId;
+      return listCareerCards(pid);
+    },
+    enabled: !activePeriod.loading,
+  });
+
   const periodIdFromUrlOrLs = useMemo(() => {
     const q = sp.get("periodId");
     if (q && !Number.isNaN(Number(q))) return Number(q);
-
     const ls = localStorage.getItem("periodId");
     if (ls && !Number.isNaN(Number(ls))) return Number(ls);
-
     return null;
   }, [sp]);
 
   const [emailOpen, setEmailOpen] = useState(false);
-
-  // ✅ editar incidencia
   const [editIncOpen, setEditIncOpen] = useState(false);
   const [editingIncident, setEditingIncident] = useState<IncidentDto | null>(null);
-
-  // ✅ periodo real que vamos a usar
   const [resolvedPeriodId, setResolvedPeriodId] = useState<number | null>(periodIdFromUrlOrLs);
 
-  const resolvePeriod = async () => {
+  const resolvePeriod = useCallback(async () => {
     if (resolvedPeriodId) return resolvedPeriodId;
     try {
       const p = await getActiveAcademicPeriod();
@@ -109,32 +156,22 @@ export default function StudentDetailPage() {
         setResolvedPeriodId(p.id);
         return p.id;
       }
-    } catch { }
+    } catch {}
     return null;
-  };
+  }, [resolvedPeriodId]);
 
-  /* ===================== LÓGICA REACTIVA (Queries & Mutations) ===================== */
-
-  // Mantenemos el nombre 'data' y 'loading' para no romper tu diseño de abajo
-  const { data, isLoading: loading, refetch: load } = useQuery<StudentDetailDto | null>({
+  const { data, isLoading: loading } = useQuery<StudentDetailDto | null>({
     queryKey: ["studentDetail", id, resolvedPeriodId],
     queryFn: async () => {
       if (!id) return null;
       const pid = await resolvePeriod();
-      
       if (!pid) {
-        message.warning("No hay período académico activo. Las incidencias/observaciones requieren un período activo.");
+        message.warning("No hay período académico activo.");
         return null;
       }
-
-      console.log("🔍 Admin cargando estudiante con periodId:", pid);
-
       const res = await api.get<StudentDetailDto>(`/admin/students/${id}`, {
         params: { periodId: pid },
       });
-
-      console.log("✅ Respuesta del backend:", res.data);
-
       return {
         ...res.data,
         incidents: res.data.incidents || [],
@@ -143,268 +180,252 @@ export default function StudentDetailPage() {
     },
     enabled: !!id,
     retry: false,
+    refetchInterval: POLLING_INTERVAL_MS,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 
-  // Mutación para borrar sin recargar página
   const deleteMutation = useMutation({
-    mutationFn: ({ studentId, incidentId, pid }: { studentId: number, incidentId: number, pid: number }) =>
+    mutationFn: ({ studentId, incidentId, pid }: { studentId: number; incidentId: number; pid: number }) =>
       deleteIncident(studentId, incidentId, pid),
     onSuccess: (res) => {
       message.success(`Incidencia eliminada ✅ (Estado: ${res?.studentStatus ?? "OK"})`);
-      // Esto hace que la data se refresque sola
       queryClient.invalidateQueries({ queryKey: ["studentDetail", id] });
+      setDeleteDialog({ open: false, incident: null });
     },
     onError: (e: any) => {
       message.error(e?.response?.data?.message ?? "No se pudo eliminar");
-    }
+      setDeleteDialog({ open: false, incident: null });
+    },
   });
 
-  /* ===================== EFECTOS ===================== */
+  const confirmDelete = () => {
+    const inc = deleteDialog.incident;
+    const pid = resolvedPeriodId || Number(localStorage.getItem("periodId"));
+    if (!inc || !pid || !data?.id) { message.warning("Falta periodId activo."); return; }
+    deleteMutation.mutate({ studentId: data.id, incidentId: inc.id, pid });
+  };
 
   useEffect(() => {
     setResolvedPeriodId(periodIdFromUrlOrLs);
   }, [periodIdFromUrlOrLs]);
 
-  const handleLogout = () => {
-    logout();
-    nav("/");
-  };
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", backgroundColor: "#f4f7f6" }}>
-      {/* HEADER */}
-      <div
-        style={{
-          backgroundColor: VERDE_INSTITUCIONAL,
-          padding: "10px 40px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          borderBottom: "4px solid #fff",
-        }}
-      >
-        <Title level={4} style={{ margin: 0, color: "#fff", fontWeight: 700 }}>
-          Panel Administrativo · Historial Académico
-        </Title>
-        <Space>
-          <Button icon={<ReloadOutlined />} onClick={() => load()} loading={loading} style={{ borderRadius: "20px" }} />
-          <Button
-            icon={<LogoutOutlined />}
-            onClick={handleLogout}
-            style={{
-              borderRadius: "20px",
-              fontWeight: 600,
-              backgroundColor: "#fff",
-              color: "#ff4d4f",
-              border: "none",
-            }}
-          >
-            Salir
-          </Button>
-        </Space>
-      </div>
+    <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "#f4f7f6" }}>
 
-      <div style={{ flex: 1, padding: "20px", display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <div style={{ width: "100%", maxWidth: "950px" }}>
-          {/* BOTONES */}
-          <Card
-            style={{
-              marginBottom: 15,
-              borderRadius: "15px",
-              boxShadow: "0 4px 10px rgba(0,0,0,0.05)",
-              border: "none",
-            }}
-            bodyStyle={{ padding: "12px 20px" }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <Button
-                icon={<ArrowLeftOutlined />}
-                onClick={() => nav(-1)}
-                style={{
-                  borderRadius: "8px",
-                  fontWeight: 600,
-                  color: VERDE_INSTITUCIONAL,
-                  borderColor: VERDE_INSTITUCIONAL,
-                }}
-              >
-                Volver al listado
-              </Button>
+      {/* SIDEBAR — permanente en sm+, drawer en mobile */}
+      <AdminSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onLogout={() => setLogoutOpen(true)}
+        verde={VERDE_INSTITUCIONAL}
+        careerCards={careerCards}
+        selectedPeriodId={selectedPeriodId}
+      />
 
-              <Space>
-                <Tag style={{ borderRadius: 999, padding: "2px 10px" }}>
-                  Periodo: <b>{resolvedPeriodId ?? "NO ACTIVO"}</b>
-                </Tag>
+      {/* CONTENIDO — se desplaza a la derecha del sidebar en sm+ */}
+      <div style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        minWidth: 0,
+        height: "100vh",
+        overflow: "hidden",
+      }}>
 
-                <Button
-                  type="primary"
-                  icon={<MailOutlined />}
-                  onClick={() => setEmailOpen(true)}
-                  disabled={!data}
-                  style={{ backgroundColor: VERDE_INSTITUCIONAL, borderRadius: "8px", fontWeight: 600 }}
-                >
-                  Notificar al Estudiante
-                </Button>
-              </Space>
-            </div>
-          </Card>
-
-          {/* CONTENIDO */}
-          <Card
-            loading={loading}
-            style={{
-              borderRadius: "20px",
-              boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
-              border: "none",
-              overflow: "hidden",
-            }}
-            bodyStyle={{ padding: "0" }}
-          >
-            {data && (
-              <>
-                <div style={{ backgroundColor: VERDE_INSTITUCIONAL, padding: "12px 25px", color: "white" }}>
-                  <Text
-                    style={{
-                      color: "rgba(255,255,255,0.7)",
-                      fontSize: "10px",
-                      fontWeight: 700,
-                      letterSpacing: "1px",
-                    }}
-                  >
-                    DETALLES DEL ALUMNO
-                  </Text>
-                  <Title level={4} style={{ color: "white", margin: 0 }}>
-                    {data.firstName} {data.lastName}
-                  </Title>
-                </div>
-
-                <div style={{ padding: "25px" }}>
-                  <Descriptions
-                    bordered
-                    size="small"
-                    column={{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }}
-                    labelStyle={{
-                      backgroundColor: "#fafafa",
-                      fontWeight: 700,
-                      color: VERDE_INSTITUCIONAL,
-                      width: "180px",
-                    }}
-                  >
-                    <Descriptions.Item label="DNI">{data.dni}</Descriptions.Item>
-                    <Descriptions.Item label="Correo">{data.email}</Descriptions.Item>
-                    <Descriptions.Item label="Carrera">{data.career}</Descriptions.Item>
-                    <Descriptions.Item label="Periodo">{data.corte}</Descriptions.Item>
-                    <Descriptions.Item label="Sección">{data.section || "N/A"}</Descriptions.Item>
-                    <Descriptions.Item label="Modalidad">{data.modality || "PRESENCIAL"}</Descriptions.Item>
-                    <Descriptions.Item label="Titulación">{data.titulationType || "No asignada"}</Descriptions.Item>
-                    <Descriptions.Item label="Estado">
-                      <Tag color={String(data.status).toUpperCase().includes("REPROB") ? "error" : "processing"}>
-                        {data.status}
-                      </Tag>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Incidencias totales">{data.incidents.length}</Descriptions.Item>
-                    <Descriptions.Item label="Total de observaciones">{data.observations.length}</Descriptions.Item>
-                  </Descriptions>
-
-                  <Tabs
-                    style={{ marginTop: 20 }}
-                    items={[
-                      {
-                        key: "inc",
-                        label: `Incidencias (${data.incidents.length})`,
-                        children: (
-                          <Table
-                            rowKey="id"
-                            dataSource={data.incidents}
-                            pagination={{ pageSize: 5 }}
-                            size="small"
-                            columns={[
-                              { title: "Etapa", dataIndex: "stage", key: "stage" },
-                              { title: "Fecha", dataIndex: "date", key: "date" },
-                              { title: "Motivo", dataIndex: "reason", key: "reason" },
-                              { title: "Acción", dataIndex: "action", key: "action" },
-                              { title: "Creado", dataIndex: "createdAt", key: "createdAt" },
-                              {
-                                title: "Acciones",
-                                key: "actions",
-                                width: 140,
-                                render: (_: any, inc: IncidentDto) => {
-                                  const pid = resolvedPeriodId || Number(localStorage.getItem("periodId"));
-                                  return (
-                                    <Space>
-                                      <Button
-                                        size="small"
-                                        icon={<EditOutlined />}
-                                        onClick={() => {
-                                          setEditingIncident(inc);
-                                          setEditIncOpen(true);
-                                        }}
-                                      />
-                                      <Popconfirm
-                                        title="¿Eliminar incidencia?"
-                                        description="Si el estudiante queda con menos de 3 incidencias, vuelve a EN_CURSO."
-                                        okText="Eliminar"
-                                        cancelText="Cancelar"
-                                        onConfirm={() => {
-                                          if (!pid || !data?.id) {
-                                            message.warning("Falta periodId activo.");
-                                            return;
-                                          }
-                                          deleteMutation.mutate({ studentId: data.id, incidentId: inc.id, pid });
-                                        }}
-                                      >
-                                        <Button size="small" danger icon={<DeleteOutlined />} loading={deleteMutation.isPending} />
-                                      </Popconfirm>
-                                    </Space>
-                                  );
-                                },
-                              },
-                            ]}
-                            locale={{ emptyText: "No hay incidencias registradas" }}
-                          />
-                        ),
-                      },
-                      {
-                        key: "obs",
-                        label: `Observaciones (${data.observations.length})`,
-                        children: (
-                          <Table
-                            rowKey="id"
-                            dataSource={data.observations}
-                            pagination={{ pageSize: 5 }}
-                            size="small"
-                            columns={[
-                              { title: "Autor", dataIndex: "author", key: "author" },
-                              { title: "Observación", dataIndex: "text", key: "text" },
-                              { title: "Fecha", dataIndex: "createdAt", key: "createdAt" },
-                            ]}
-                            locale={{ emptyText: "No hay observaciones registradas" }}
-                          />
-                        ),
-                      },
-                    ]}
-                  />
-                </div>
-              </>
-            )}
-          </Card>
+        {/* HEADER */}
+        <div
+          style={{
+            backgroundColor: VERDE_INSTITUCIONAL,
+            height: 60,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "0 20px",
+            borderBottom: "4px solid #fff",
+            flexShrink: 0,
+          }}
+        >
+          {/* ✅ Hamburguesa SOLO en mobile */}
+          {isMobile && (
+            <Button
+              icon={<MenuOutlined />}
+              onClick={() => setSidebarOpen(true)}
+              style={{
+                borderRadius: "10px",
+                backgroundColor: "rgba(255,255,255,0.15)",
+                border: "none",
+                color: "#fff",
+                fontWeight: 700,
+              }}
+            />
+          )}
+          <Title level={4} style={{ margin: 0, color: "#fff", fontWeight: 700 }}>
+            Panel Administrativo · Historial Académico
+          </Title>
         </div>
+
+        {/* CONTENIDO SCROLLEABLE */}
+        <div style={{ flex: 1, padding: "30px 40px", overflowY: "auto" }}>
+          <div style={{ width: "100%", maxWidth: "1100px", margin: "0 auto" }}>
+
+            <Card
+              style={{ marginBottom: 20, borderRadius: "15px", border: "none" }}
+              bodyStyle={{ padding: "12px 20px" }}
+            >
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <Space>
+                  <Tag style={{ borderRadius: 999, padding: "2px 10px" }}>
+                    Periodo: <b>{resolvedPeriodId ?? "NO ACTIVO"}</b>
+                  </Tag>
+                  <Button
+                    type="primary"
+                    icon={<MailOutlined />}
+                    onClick={() => setEmailOpen(true)}
+                    disabled={!data}
+                    style={{ backgroundColor: VERDE_INSTITUCIONAL, borderRadius: "8px" }}
+                  >
+                    Notificar al Estudiante
+                  </Button>
+                </Space>
+              </div>
+            </Card>
+
+            <Card
+              loading={loading}
+              style={{ borderRadius: "20px", border: "none", overflow: "hidden" }}
+              bodyStyle={{ padding: 0 }}
+            >
+              {data && (
+                <>
+                  <div style={{ backgroundColor: VERDE_INSTITUCIONAL, padding: "15px 25px", color: "white" }}>
+                    <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: "10px", fontWeight: 700 }}>
+                      DETALLES DEL ALUMNO
+                    </Text>
+                    <Title level={4} style={{ color: "white", margin: 0 }}>
+                      {data.firstName} {data.lastName}
+                    </Title>
+                  </div>
+
+                  <div style={{ padding: "30px" }}>
+                    <Descriptions bordered column={{ xxl: 2, xl: 2, lg: 2, md: 1, sm: 1, xs: 1 }}>
+                      <Descriptions.Item label="Cédula">{data.dni}</Descriptions.Item>
+                      <Descriptions.Item label="Correo">{data.email}</Descriptions.Item>
+                      <Descriptions.Item label="Carrera">{data.career}</Descriptions.Item>
+                      <Descriptions.Item label="Periodo">{data.corte}</Descriptions.Item>
+                      <Descriptions.Item label="Sección">{data.section || "N/A"}</Descriptions.Item>
+                      <Descriptions.Item label="Modalidad">{data.modality || "PRESENCIAL"}</Descriptions.Item>
+                      <Descriptions.Item label="Titulación">{data.titulationType}</Descriptions.Item>
+                      <Descriptions.Item label="Estado">
+                        <Tag>{data.status}</Tag>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="Incidencias totales">{data.incidents.length}</Descriptions.Item>
+                      <Descriptions.Item label="Total de observaciones">{data.observations.length}</Descriptions.Item>
+                    </Descriptions>
+
+                    <Tabs
+                      style={{ marginTop: 30 }}
+                      items={[
+                        {
+                          key: "inc",
+                          label: `Incidencias (${data.incidents.length})`,
+                          children: (
+                            <div style={{ overflowX: "auto" }}>
+                              <Table
+                                rowKey="id"
+                                dataSource={data.incidents}
+                                pagination={{ pageSize: 5 }}
+                                size="small"
+                                scroll={{ x: "max-content" }}
+                                columns={[
+                                  { title: "Etapa",  dataIndex: "stage",  width: 90,  ellipsis: true },
+                                  {
+                                    title: "Fecha",
+                                    dataIndex: "date",
+                                    width: 110,
+                                    render: (v: string) => formatDate(v),
+                                  },
+                                  { title: "Motivo", dataIndex: "reason", width: 140, ellipsis: true },
+                                  { title: "Acción", dataIndex: "action", width: 120, ellipsis: true },
+                                  {
+                                    title: "Creado",
+                                    dataIndex: "createdAt",
+                                    width: 120,
+                                    render: (v: string) => formatDate(v),
+                                  },
+                                  {
+                                    title: "Acciones",
+                                    key: "actions",
+                                    width: 90,
+                                    render: (_: any, inc: IncidentDto) => (
+                                      <Space>
+                                        <Button
+                                          size="small"
+                                          icon={<EditOutlined />}
+                                          onClick={() => { setEditingIncident(inc); setEditIncOpen(true); }}
+                                        />
+                                        {/* ✅ Reemplazado Popconfirm por Dialog MUI */}
+                                        <Button
+                                          size="small"
+                                          danger
+                                          icon={<DeleteOutlined />}
+                                          loading={deleteMutation.isPending && deleteDialog.incident?.id === inc.id}
+                                          onClick={() => setDeleteDialog({ open: true, incident: inc })}
+                                        />
+                                      </Space>
+                                    ),
+                                  },
+                                ]}
+                                locale={{ emptyText: "No hay incidencias registradas" }}
+                              />
+                            </div>
+                          ),
+                        },
+                        {
+                          key: "obs",
+                          label: `Observaciones (${data.observations.length})`,
+                          children: (
+                            <div style={{ overflowX: "auto" }}>
+                              <Table
+                                rowKey="id"
+                                dataSource={data.observations}
+                                pagination={{ pageSize: 5 }}
+                                size="small"
+                                scroll={{ x: "max-content" }}
+                                columns={[
+                                  { title: "Autor",       dataIndex: "author",    width: 130, ellipsis: true },
+                                  { title: "Observación", dataIndex: "text",      width: 240, ellipsis: true },
+                                  {
+                                    title: "Fecha",
+                                    dataIndex: "createdAt",
+                                    width: 120,
+                                    render: (v: string) => formatDate(v),
+                                  },
+                                ]}
+                                locale={{ emptyText: "No hay observaciones registradas" }}
+                              />
+                            </div>
+                          ),
+                        },
+                      ]}
+                    />
+                  </div>
+                </>
+              )}
+            </Card>
+
+          </div>
+        </div>
+
+        {/* FOOTER */}
+        <div style={{ backgroundColor: VERDE_INSTITUCIONAL, padding: "12px", textAlign: "center", flexShrink: 0 }}>
+          <Text style={{ color: "#fff", fontSize: "11px" }}>
+            © 2026 INSTITUTO SUPERIOR TECNOLÓGICO SUDAMERICANO — SISTEMA DE CONTROL
+          </Text>
+        </div>
+
       </div>
 
-      {/* FOOTER */}
-      <div
-        style={{
-          backgroundColor: VERDE_INSTITUCIONAL,
-          padding: "12px",
-          textAlign: "center",
-          borderTop: "4px solid #fff",
-        }}
-      >
-        <Text style={{ color: "#fff", fontSize: "11px", fontWeight: 600 }}>
-          © 2026 INSTITUTO SUPERIOR TECNOLÓGICO SUDAMERICANO — SISTEMA DE CONTROL
-        </Text>
-      </div>
-
-      {/* ✅ MODAL EMAIL */}
       <SendEmailModal
         open={emailOpen}
         studentId={data?.id || 0}
@@ -412,7 +433,6 @@ export default function StudentDetailPage() {
         onClose={() => setEmailOpen(false)}
       />
 
-      {/* ✅ MODAL EDITAR INCIDENCIA */}
       {data && (
         <EditIncidentModal
           open={editIncOpen}
@@ -423,6 +443,74 @@ export default function StudentDetailPage() {
           incident={editingIncident}
         />
       )}
+
+      {/* ── DIALOG ELIMINAR INCIDENCIA ─────────────────────────────────────── */}
+      <Dialog
+        open={deleteDialog.open}
+        onClose={() => setDeleteDialog({ open: false, incident: null })}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: "20px" } }}
+      >
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.5, pt: 3, px: 3, pb: 1 }}>
+          <Box sx={{ width: 40, height: 40, borderRadius: "50%", bgcolor: "#d32f2f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <DeleteIcon sx={{ color: "#fff", fontSize: 20 }} />
+          </Box>
+          <MuiTypography sx={{ fontWeight: 800, fontSize: "1.15rem" }}>Eliminar incidencia</MuiTypography>
+        </DialogTitle>
+        <DialogContent sx={{ px: 3, pb: 1 }}>
+          <MuiTypography variant="body2" color="text.secondary">
+            ¿Estás seguro de que deseas eliminar esta incidencia? Esta acción no se puede deshacer.
+          </MuiTypography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 1.5 }}>
+          <MuiButton
+            onClick={() => setDeleteDialog({ open: false, incident: null })}
+            variant="outlined"
+            fullWidth
+            sx={{ borderRadius: "50px", textTransform: "none", fontWeight: 700, borderColor: "#ccc", color: "#555", py: 1.2, "&:hover": { borderColor: "#aaa", bgcolor: "#f9f9f9" } }}
+          >
+            Cancelar
+          </MuiButton>
+          <MuiButton
+            onClick={confirmDelete}
+            variant="contained"
+            fullWidth
+            disabled={deleteMutation.isPending}
+            sx={{ borderRadius: "50px", textTransform: "none", fontWeight: 700, bgcolor: "#d32f2f", py: 1.2, "&:hover": { bgcolor: "#b71c1c" } }}
+          >
+            {deleteMutation.isPending ? "Eliminando..." : "Eliminar"}
+          </MuiButton>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── DIALOG CERRAR SESIÓN ─────────────────────────────────────────────── */}
+      <Dialog open={logoutOpen} onClose={() => setLogoutOpen(false)} maxWidth="xs" fullWidth
+        PaperProps={{ sx: { borderRadius: "16px", p: 1 } }}
+      >
+        <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.5, pb: 1 }}>
+          <Box sx={{ width: 40, height: 40, borderRadius: "50%", bgcolor: "rgba(0,139,139,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <LogoutIcon sx={{ color: VERDE_INSTITUCIONAL, fontSize: 20 }} />
+          </Box>
+          <MuiTypography sx={{ fontWeight: 800, fontSize: "1.1rem" }}>Cerrar sesión</MuiTypography>
+        </DialogTitle>
+        <DialogContent sx={{ pb: 1 }}>
+          <MuiTypography variant="body2" color="text.secondary">
+            ¿Estás seguro de que deseas cerrar sesión? Tu sesión actual se terminará.
+          </MuiTypography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <MuiButton onClick={() => setLogoutOpen(false)} variant="outlined" fullWidth
+            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, borderColor: "#ddd", color: "#555" }}>
+            Cancelar
+          </MuiButton>
+          <MuiButton onClick={() => { logout(); nav("/"); }} variant="contained" fullWidth
+            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, bgcolor: VERDE_INSTITUCIONAL, "&:hover": { bgcolor: "#006666" } }}>
+            Cerrar sesión
+          </MuiButton>
+        </DialogActions>
+      </Dialog>
+
     </div>
   );
 }

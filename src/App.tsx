@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { api } from "./api/api";
+import { Box } from "@mui/material";
 
 // --- LÓGICA REACTIVA ---
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -37,6 +38,11 @@ type MeDto = { username: string; roles: string[] };
 const normalizeRoles = (roles: string[]) =>
   roles.map((r) => (r.startsWith("ROLE_") ? r : `ROLE_${r}`));
 
+// Fondo de espera — mismo color que la app, evita el flash blanco
+const LoadingScreen = () => (
+  <Box sx={{ minHeight: "100vh", bgcolor: "#f0f2f5" }} />
+);
+
 // --- COMPONENTES DE PROTECCIÓN DE RUTAS ---
 
 function RequireRole({
@@ -57,33 +63,48 @@ function RequireAnyRole({
   rolesAllowed: Array<"ROLE_ADMIN" | "ROLE_COORDINATOR" | "ROLE_TUTOR" | "ROLE_JURY">;
 }) {
   const token = localStorage.getItem("token");
-  const [me, setMe] = useState<MeDto | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  // ✅ Lee del caché primero — evita llamada a /me si ya existe
+  const [me, setMe] = useState<MeDto | null>(() => {
+    const cached = sessionStorage.getItem("me");
+    return cached ? JSON.parse(cached) : null;
+  });
+
+  // ✅ Solo muestra "cargando" si no hay caché y hay token
+  const [loading, setLoading] = useState(!me && !!token);
 
   useEffect(() => {
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+    // Si no hay token o ya tenemos usuario en caché, no hacemos nada
+    if (!token || me) return;
+
     (async () => {
       try {
         const res = await api.get<MeDto>("/me");
         setMe(res.data);
+        sessionStorage.setItem("me", JSON.stringify(res.data));
       } catch {
         localStorage.clear();
+        sessionStorage.clear();
         setMe(null);
       } finally {
         setLoading(false);
       }
     })();
-  }, [token]);
+  }, [token]); // ✅ Solo depende de token, no de me
 
+  // 1. Sin token → al login
   if (!token) return <Navigate to="/" replace />;
-  if (loading) return null;
 
-  const userRoles = normalizeRoles(me?.roles ?? []);
+  // 2. Cargando y sin usuario → pantalla del mismo color (sin flash blanco)
+  if (loading && !me) return <LoadingScreen />;
+
+  // 3. Terminó de cargar y no hay usuario → al login
+  if (!me) return <Navigate to="/" replace />;
+
+  const userRoles = normalizeRoles(me.roles);
   const allowed = rolesAllowed.some((r) => userRoles.includes(r));
 
+  // 4. Tiene el rol → muestra el contenido; si no → al inicio
   return allowed ? <>{children}</> : <Navigate to="/" replace />;
 }
 
@@ -91,26 +112,40 @@ function RequireAnyRole({
 
 function HomeRedirect() {
   const token = localStorage.getItem("token");
-  const [me, setMe] = useState<MeDto | null>(null);
-  const [loading, setLoading] = useState(!!token);
+
+  // ✅ Lee del caché igual que RequireAnyRole
+  const [me, setMe] = useState<MeDto | null>(() => {
+    const cached = sessionStorage.getItem("me");
+    return cached ? JSON.parse(cached) : null;
+  });
+
+  // ✅ Solo carga si no hay caché y hay token
+  const [loading, setLoading] = useState(!me && !!token);
 
   useEffect(() => {
-    if (!token) return;
+    // Si no hay token o ya tenemos usuario en caché, no hacemos nada
+    if (!token || me) return;
+
     (async () => {
       try {
         const res = await api.get<MeDto>("/me");
         setMe(res.data);
+        sessionStorage.setItem("me", JSON.stringify(res.data)); // ✅ guarda en caché
       } catch {
         localStorage.clear();
+        sessionStorage.clear();
         setMe(null);
       } finally {
         setLoading(false);
       }
     })();
-  }, [token]);
+  }, [token]); // ✅ Solo depende de token
 
+  // Sin token → login directo
   if (!token) return <LoginPage />;
-  if (loading) return null;
+
+  // Cargando → pantalla del mismo color (sin flash blanco)
+  if (loading) return <LoadingScreen />;
 
   const roles = normalizeRoles(me?.roles ?? []);
 
@@ -119,7 +154,9 @@ function HomeRedirect() {
   if (roles.includes("ROLE_TUTOR")) return <Navigate to="/tutor" replace />;
   if (roles.includes("ROLE_JURY")) return <Navigate to="/jury/predefense" replace />;
 
+  // Si llegó aquí, el token es inválido → limpiar y mostrar login
   localStorage.clear();
+  sessionStorage.clear();
   return <LoginPage />;
 }
 
@@ -140,23 +177,18 @@ export default function App() {
           <Route path="/admin/predefense" element={<RequireRole role="ROLE_ADMIN"><AdminPredefensePage /></RequireRole>} />
           <Route path="/admin/final-defense" element={<RequireRole role="ROLE_ADMIN"><FinalDefenseAdminPage /></RequireRole>} />
 
-          {/* RUTAS DE COORDINADOR (Ruta dedicada para su predefensa) */}
+          {/* RUTAS DE COORDINADOR */}
           <Route path="/coordinator" element={<RequireRole role="ROLE_COORDINATOR"><CoordinatorStudentsPage /></RequireRole>} />
           <Route path="/coordinator/students/:id" element={<RequireRole role="ROLE_COORDINATOR"><CoordinatorStudentDetailPage /></RequireRole>} />
-          <Route 
-            path="/coordinator/predefense" 
-            element={<RequireRole role="ROLE_COORDINATOR"><JuryPredefensePage /></RequireRole>} 
-          />
+          <Route path="/coordinator/predefense" element={<RequireRole role="ROLE_COORDINATOR"><JuryPredefensePage /></RequireRole>} />
+          <Route path="/coordinator/final-defense" element={<RequireRole role="ROLE_COORDINATOR"><FinalDefenseJuryPage /></RequireRole>} />
 
-          {/* RUTAS DE TUTOR (Ruta dedicada para su predefensa) */}
+          {/* RUTAS DE TUTOR */}
           <Route path="/tutor" element={<RequireRole role="ROLE_TUTOR"><TutorStudentsPage /></RequireRole>} />
           <Route path="/tutor/students/:id" element={<RequireRole role="ROLE_TUTOR"><TutorStudentDetailPage /></RequireRole>} />
-          <Route 
-            path="/tutor/predefense" 
-            element={<RequireRole role="ROLE_TUTOR"><JuryPredefensePage /></RequireRole>} 
-          />
+          <Route path="/tutor/predefense" element={<RequireRole role="ROLE_TUTOR"><JuryPredefensePage /></RequireRole>} />
 
-          {/* RUTAS DE JURADO (Acceso general si es solo jurado) */}
+          {/* RUTAS DE JURADO */}
           <Route
             path="/jury/predefense"
             element={
