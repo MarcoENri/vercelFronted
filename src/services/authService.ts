@@ -9,10 +9,18 @@ export async function login(username: string, password: string) {
   return res.data;
 }
 
-/** ✅ Cerrar sesión de forma selectiva */
+/** ✅ Cerrar sesión completamente */
 export function logout() {
+  // 1️⃣ Borramos el token y los datos del usuario
   localStorage.removeItem("token");
-  // Nota: Mantenemos el resto de claves como adminPeriodId intactas.
+  localStorage.removeItem("user");
+
+  // Nota: Puedes decidir si borrar o mantener 'adminPeriodId' o 'periodId'.
+  // Generalmente se mantienen para recordar la preferencia en el próximo login,
+  // pero si deseas limpieza total, podrías usar localStorage.clear();
+
+  // 2️⃣ Recargar la app y redirigir al login (limpia estados de memoria y caché)
+  window.location.href = "/";
 }
 
 /** * ✅ Forgot password (Actualizado)
