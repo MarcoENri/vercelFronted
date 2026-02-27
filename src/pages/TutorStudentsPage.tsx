@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Box,
@@ -20,9 +20,12 @@ import {
   DialogContent,
   DialogActions,
   Button,
+  Snackbar,
+  Alert,
+  Collapse,
 } from "@mui/material";
 
-import { Logout as LogoutIcon } from "@mui/icons-material";
+import { Logout as LogoutIcon, SyncRounded } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import { logout } from "../services/authService";
 import type { TutorStudentRow } from "../services/tutorService";
@@ -57,8 +60,6 @@ export default function TutorStudentsPage() {
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // 🔹 Ahora periodId empieza en null, no desde localStorage
-  const [periodId, setPeriodId] = useState<number | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   // ─── Dialog cerrar sesión ──────────────────────────────────────────────────
@@ -68,36 +69,51 @@ export default function TutorStudentsPage() {
     nav("/");
   };
 
-  // 🔹 Resolvemos el período en un efecto
-  useEffect(() => {
-    const resolve = async () => {
-      // 1️⃣ Primero, si viene en la URL, eso manda
+  // ── NUEVO: refs y estados para detectar cambio de período ─────────────────
+  const prevPeriodIdRef = useRef<number | null>(null);
+  const isFirstLoad = useRef(true);
+  const [showBanner, setShowBanner] = useState(false);
+  const [bannerName, setBannerName] = useState("");
+  const [toast, setToast] = useState<{ open: boolean; msg: string }>({ open: false, msg: "" });
+
+  // ── NUEVO: reemplaza el useEffect de resolución — polling al período activo ─
+  const { data: activePeriod } = useQuery({
+    queryKey: ["activePeriod"],
+    queryFn: () => getActiveAcademicPeriod(),
+    initialData: (() => {
       const q = searchParams.get("periodId");
-      if (q && !Number.isNaN(Number(q))) {
-        const pid = Number(q);
-        setPeriodId(pid);
-        localStorage.setItem("periodId", String(pid));
-        return;
-      }
+      if (q && !Number.isNaN(Number(q))) return { id: Number(q), name: `Período ${q}`, isActive: true } as any;
+      const ls = localStorage.getItem("periodId");
+      if (ls && !Number.isNaN(Number(ls))) return { id: Number(ls), name: `Período ${ls}`, isActive: true } as any;
+      return undefined;
+    })(),
+    staleTime: 0,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+  });
 
-      // 2️⃣ Si no viene en la URL, preguntar SIEMPRE al backend el activo
-      try {
-        const p = await getActiveAcademicPeriod();
-        if (p?.id) {
-          setPeriodId(p.id);
-          localStorage.setItem("periodId", String(p.id));
-        }
-      } catch {
-        // 3️⃣ Si falla el backend, usar localStorage como backup
-        const ls = localStorage.getItem("periodId");
-        if (ls && !Number.isNaN(Number(ls))) {
-          setPeriodId(Number(ls));
-        }
-      }
-    };
+  const periodId = activePeriod?.id ?? null;
 
-    resolve();
-  }, [searchParams]);
+  // ── NUEVO: detectar cuando el admin cambia el período activo ──────────────
+  useEffect(() => {
+    if (!periodId) return;
+    if (isFirstLoad.current) {
+      prevPeriodIdRef.current = periodId;
+      isFirstLoad.current = false;
+      localStorage.setItem("periodId", String(periodId));
+      return;
+    }
+    if (prevPeriodIdRef.current !== null && prevPeriodIdRef.current !== periodId) {
+      const name = activePeriod?.name ?? `Período ${periodId}`;
+      setBannerName(name);
+      setShowBanner(true);
+      setToast({ open: true, msg: `📅 Período actualizado a "${name}"` });
+      localStorage.setItem("periodId", String(periodId));
+      setTimeout(() => setShowBanner(false), 4000);
+    }
+    prevPeriodIdRef.current = periodId;
+  }, [periodId, activePeriod?.name]);
 
   // ✅ PROGRAMACIÓN REACTIVA: polling cada 3s → estudiantes aparecen automáticamente
   // cuando el admin los asigna, sin necesidad de recargar la página
@@ -109,9 +125,9 @@ export default function TutorStudentsPage() {
     },
     placeholderData: (prev) => prev,
     staleTime: 0,
-    refetchInterval: 3000,             // Consulta cada 3 segundos
-    refetchIntervalInBackground: true,  // Sigue aunque la pestaña no esté activa
-    refetchOnWindowFocus: true,         // Refresca al volver a la pestaña
+    refetchInterval: 3000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   const tutorInfo = useMemo(() => {
@@ -205,22 +221,32 @@ export default function TutorStudentsPage() {
             }}
           >
             <Box>
-              <Typography
-                variant="subtitle1"
-                sx={{ fontWeight: 800, lineHeight: 1 }}
-              >
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1 }}>
                 Mis Estudiantes
               </Typography>
               <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                Listado general — Periodo: {periodId ?? "Cargando..."}
+                {/* NUEVO: muestra el nombre del período en lugar del ID */}
+                Listado general — {activePeriod?.name ?? `Periodo: ${periodId ?? "Cargando..."}`}
               </Typography>
             </Box>
+            
           </Box>
         </Box>
 
         {/* CONTENIDO */}
         <Box sx={{ flex: 1, py: 4, overflowY: "auto" }}>
           <Container maxWidth="lg">
+
+            {/* NUEVO: banner animado de cambio de período */}
+            <Collapse in={showBanner}>
+              <Box sx={{ bgcolor: "rgba(0,139,139,0.1)", border: `1px solid ${VERDE_INSTITUCIONAL}`, borderRadius: "10px", mb: 2, px: 2.5, py: 1.2, display: "flex", alignItems: "center", gap: 1.5 }}>
+                <SyncRounded sx={{ color: VERDE_INSTITUCIONAL, fontSize: 18, animation: "spin 1s linear infinite", "@keyframes spin": { "0%": { transform: "rotate(0deg)" }, "100%": { transform: "rotate(360deg)" } } }} />
+                <Typography sx={{ fontSize: "0.85rem", fontWeight: 700, color: VERDE_INSTITUCIONAL }}>
+                  Período actualizado a <strong>{bannerName}</strong> — cargando tus estudiantes...
+                </Typography>
+              </Box>
+            </Collapse>
+
             <Card
               sx={{
                 borderRadius: "12px",
@@ -481,6 +507,13 @@ export default function TutorStudentsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* NUEVO: toast de cambio de período */}
+      <Snackbar open={toast.open} autoHideDuration={5000} onClose={() => setToast(t => ({ ...t, open: false }))} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
+        <Alert onClose={() => setToast(t => ({ ...t, open: false }))} severity="info" variant="filled" sx={{ fontWeight: 700, borderRadius: "12px", bgcolor: VERDE_INSTITUCIONAL }}>
+          {toast.msg}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

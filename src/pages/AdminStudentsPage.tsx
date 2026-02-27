@@ -16,9 +16,12 @@ import {
   useTheme,
   Snackbar,
   Alert,
+  Collapse,
+  Grow,
+  Chip,
 } from "@mui/material";
 
-import { Logout as LogoutIcon } from "@mui/icons-material";
+import { Logout as LogoutIcon, CheckCircle as CheckCircleIcon, RadioButtonUnchecked as RadioButtonUncheckedIcon } from "@mui/icons-material";
 
 import dayjs, { Dayjs } from "dayjs";
 import "dayjs/locale/es";
@@ -36,6 +39,7 @@ import {
   createAcademicPeriod,
   listAcademicPeriods,
   type AcademicPeriodDto,
+  activateAcademicPeriod,
 } from "../services/periodService";
 import { listCareerCards, type CareerCardDto } from "../services/adminCareerCardsService";
 
@@ -103,6 +107,9 @@ export default function AdminStudentsPage() {
   const [newCareerColor, setNewCareerColor] = useState("#546e7a");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
+  // NUEVO: para animar el período recién activado
+  const [activatingId, setActivatingId] = useState<number | null>(null);
+
   const [toast, setToast] = useState<{ open: boolean; msg: string; type: "success" | "error" | "warning" }>({
     open: false, msg: "", type: "success",
   });
@@ -119,7 +126,6 @@ export default function AdminStudentsPage() {
     refetchOnWindowFocus: true,
   });
 
-  // 1️⃣ CAMBIO: Refresco automático de tarjetas cada 2s
   const { data: careerCards = [] } = useQuery<CareerCardDto[]>({
     queryKey: ["careerCards", selectedPeriodId],
     queryFn: () => {
@@ -137,6 +143,9 @@ export default function AdminStudentsPage() {
     queryKey: ["periods"],
     queryFn: () => listAcademicPeriods(),
   });
+
+  // NUEVO: períodos ordenados por id ascendente (orden de creación)
+  const sortedPeriods = useMemo(() => [...periods].sort((a, b) => a.id - b.id), [periods]);
 
   useEffect(() => {
     if (!rows || rows.length === 0) return;
@@ -207,7 +216,6 @@ export default function AdminStudentsPage() {
   const loadCareerCards = async () => queryClient.invalidateQueries({ queryKey: ["careerCards"] });
   const loadStudents = async () => queryClient.invalidateQueries({ queryKey: ["students"] });
 
-  // 3️⃣ CAMBIO: Función para refrescar ambas cosas al mismo tiempo
   const reloadStudentsAndCards = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["students"] }),
@@ -239,7 +247,6 @@ export default function AdminStudentsPage() {
     }, 0);
   };
 
-  // 2️⃣ CAMBIO: Invalidación de tarjetas y lista al importar Excel
   const handleFileUpload = async (file: File) => {
     setImporting(true);
     try {
@@ -444,11 +451,12 @@ export default function AdminStudentsPage() {
             />
           </Container>
 
-          {/* Modal Período */}
+          {/* Modal Período con LISTADO Y ACTIVACIÓN */}
           <Dialog open={openPeriodModal} onClose={() => setOpenPeriodModal(false)} maxWidth="xs" fullWidth fullScreen={isMobile}>
-            <DialogTitle sx={{ fontWeight: 700, bgcolor: VERDE_INSTITUCIONAL, color: "#fff" }}>Crear Período</DialogTitle>
+            <DialogTitle sx={{ fontWeight: 700, bgcolor: VERDE_INSTITUCIONAL, color: "#fff" }}>Gestión de Períodos</DialogTitle>
             <DialogContent dividers>
               <Box sx={{ display: "flex", flexDirection: "column", gap: 3, mt: 1 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: "0.9rem" }}>Nuevo Período</Typography>
                 {isMobile ? (
                   <MobileDatePicker
                     label="Inicio"
@@ -478,6 +486,127 @@ export default function AdminStudentsPage() {
                   <DatePicker label="Fin" value={periodEnd} onChange={(v) => setPeriodEnd(v)} format="DD/MM/YYYY" slotProps={{ textField: { fullWidth: true } }} />
                 )}
                 <FormControlLabel control={<Checkbox checked={periodIsActive} onChange={(e) => setPeriodIsActive(e.target.checked)} />} label="Periodo activo" />
+
+                {/* LISTA DE PERÍODOS — ordenados por creación, período activo destacado */}
+                <Box sx={{ mt: 1 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: "0.9rem" }}>
+                      Períodos académicos registrados
+                    </Typography>
+                    <Typography sx={{ fontSize: "0.72rem", color: "text.secondary" }}>
+                      {sortedPeriods.length} período{sortedPeriods.length !== 1 ? "s" : ""}
+                    </Typography>
+                  </Box>
+
+                  {sortedPeriods.length === 0 && (
+                    <Typography sx={{ fontSize: "0.85rem", color: "text.secondary" }}>
+                      Aún no hay períodos registrados.
+                    </Typography>
+                  )}
+
+                  {sortedPeriods.map((p, index) => (
+                    <Grow
+                      key={p.id}
+                      in={openPeriodModal}
+                      timeout={200 + index * 80}
+                    >
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          py: 1,
+                          px: 1.5,
+                          mb: 0.75,
+                          borderRadius: "10px",
+                          // NUEVO: fondo y borde verde más visible para el activo
+                          bgcolor: p.isActive ? "rgba(0,139,139,0.08)" : "rgba(0,0,0,0.02)",
+                          border: p.isActive
+                            ? `1.5px solid ${VERDE_INSTITUCIONAL}`
+                            : "1px solid rgba(0,0,0,0.08)",
+                          // NUEVO: transición suave al activarse
+                          transition: "all 0.4s ease",
+                          boxShadow: p.isActive ? "0 2px 8px rgba(0,139,139,0.15)" : "none",
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
+                          {/* NUEVO: ícono de estado */}
+                          {p.isActive
+                            ? <CheckCircleIcon sx={{ color: VERDE_INSTITUCIONAL, fontSize: 18 }} />
+                            : <RadioButtonUncheckedIcon sx={{ color: "#bbb", fontSize: 18 }} />
+                          }
+                          <Box>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              {/* NUEVO: nombre en verde si está activo */}
+                              <Typography sx={{
+                                fontWeight: 700,
+                                fontSize: "0.88rem",
+                                color: p.isActive ? VERDE_INSTITUCIONAL : "text.primary",
+                                transition: "color 0.3s ease",
+                              }}>
+                                {p.name}
+                              </Typography>
+                              {/* NUEVO: chip "ACTUAL" animado */}
+                              <Collapse in={p.isActive} orientation="horizontal">
+                                <Chip
+                                  label="ACTUAL"
+                                  size="small"
+                                  sx={{
+                                    bgcolor: VERDE_INSTITUCIONAL,
+                                    color: "#fff",
+                                    fontWeight: 900,
+                                    fontSize: "0.6rem",
+                                    height: 18,
+                                    borderRadius: "6px",
+                                    "& .MuiChip-label": { px: 0.8 },
+                                  }}
+                                />
+                              </Collapse>
+                            </Box>
+                            <Typography sx={{ fontSize: "0.72rem", color: "text.secondary" }}>
+                              {p.startDate} — {p.endDate}
+                            </Typography>
+                          </Box>
+                        </Box>
+
+                        <Button
+                          size="small"
+                          variant={p.isActive ? "contained" : "outlined"}
+                          disabled={p.isActive || activatingId === p.id}
+                          sx={{
+                            minWidth: 80,
+                            fontSize: "0.72rem",
+                            fontWeight: 700,
+                            borderRadius: "8px",
+                            bgcolor: p.isActive ? VERDE_INSTITUCIONAL : undefined,
+                            borderColor: p.isActive ? VERDE_INSTITUCIONAL : undefined,
+                            transition: "all 0.3s ease",
+                          }}
+                          onClick={async () => {
+                            setActivatingId(p.id);
+                            try {
+                              await activateAcademicPeriod(p.id);
+                              await Promise.all([
+                                loadPeriods(),
+                                queryClient.invalidateQueries({ queryKey: ["students"] }),
+                                queryClient.invalidateQueries({ queryKey: ["careerCards"] }),
+                              ]);
+                              handleSelectPeriod(p.id);
+                              showToast(`Período "${p.name}" activado ✅`);
+                            } catch (err) {
+                              console.error(err);
+                              showToast("No se pudo activar el período", "error");
+                            } finally {
+                              setActivatingId(null);
+                            }
+                          }}
+                        >
+                          {activatingId === p.id ? "..." : p.isActive ? "Activo" : "Activar"}
+                        </Button>
+                      </Box>
+                    </Grow>
+                  ))}
+                </Box>
               </Box>
             </DialogContent>
             <DialogActions sx={{ p: 2 }}>
@@ -489,7 +618,7 @@ export default function AdminStudentsPage() {
             </DialogActions>
           </Dialog>
 
-          {/* Modal Perfil Admin */}
+          {/* Otros Modales... */}
           <Dialog open={openAdminProfile} onClose={() => setOpenAdminProfile(false)} maxWidth="sm" fullWidth fullScreen={isMobile}>
             <DialogTitle sx={{ fontWeight: 700 }}>Perfil Administrador</DialogTitle>
             <DialogContent dividers>
@@ -503,7 +632,6 @@ export default function AdminStudentsPage() {
             </DialogActions>
           </Dialog>
 
-          {/* Modal Añadir Carrera */}
           <Dialog open={openAddCareer} onClose={() => setOpenAddCareer(false)} maxWidth="xs" fullWidth fullScreen={isMobile}>
             <DialogTitle sx={{ fontWeight: 700 }}>Añadir Carrera</DialogTitle>
             <DialogContent>
@@ -526,18 +654,18 @@ export default function AdminStudentsPage() {
           <AssignCareerModal 
             open={openAssignCareer} 
             onClose={() => setOpenAssignCareer(false)} 
-            onSuccess={reloadStudentsAndCards} // ✅ USANDO FUNCIÓN DE RECARGA DOBLE
+            onSuccess={reloadStudentsAndCards} 
             availableCareers={availableCareersFromBackend} 
           />
           <CreateUserModal 
             open={openCreateUser} 
             onClose={() => setOpenCreateUser(false)} 
-            onSuccess={reloadStudentsAndCards} // ✅ USANDO FUNCIÓN DE RECARGA DOBLE
+            onSuccess={reloadStudentsAndCards} 
           />
         </Box>
       </Box>
 
-      {/* ── DIALOG CERRAR SESIÓN ─────────────────────────────────────────────── */}
+      {/* DIALOG LOGOUT */}
       <Dialog open={logoutOpen} onClose={() => setLogoutOpen(false)} maxWidth="xs" fullWidth
         PaperProps={{ sx: { borderRadius: "16px", p: 1 } }}
       >

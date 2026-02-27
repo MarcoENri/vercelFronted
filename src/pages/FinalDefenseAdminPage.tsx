@@ -1,4 +1,5 @@
 // src/pages/FinalDefenseAdminPage.tsx
+import 'dayjs/locale/es';
 import { useEffect, useMemo, useState } from "react";
 import {
   Box,
@@ -43,6 +44,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
 import { MobileDateTimePicker } from "@mui/x-date-pickers/MobileDateTimePicker";
 import { renderTimeViewClock } from '@mui/x-date-pickers/timeViewRenderers';
+import { esES } from '@mui/x-date-pickers/locales';
 import dayjs, { Dayjs } from "dayjs";
 
 import { listCareers } from "../services/careerService";
@@ -73,6 +75,9 @@ import { useQuery } from "@tanstack/react-query";
 
 const VERDE_INSTITUCIONAL = "#008B8B";
 
+// ─── Texto de locale español para MUI DatePickers ────────────────────────────
+const esLocaleText = esES.components.MuiLocalizationProvider.defaultProps.localeText;
+
 export default function FinalDefenseAdminPage() {
   const nav = useNavigate();
   const activePeriod = useActivePeriod();
@@ -83,11 +88,15 @@ export default function FinalDefenseAdminPage() {
 
   // ─── Snackbar ─────────────────────────────────────────────────────────────
   const [toast, setToast] = useState<{ open: boolean; msg: string; type: "success" | "error" | "warning" }>({ open: false, msg: "", type: "success" });
-  const showToast = (msg: string, type: "success" | "error" | "warning" = "success") => setToast({ open: true, msg, type });
+  const showToast = (msg: string, type: "success" | "error" | "warning" = "success") =>
+    setToast({ open: true, msg, type });
 
   // ─── Dialog confirmar acción ───────────────────────────────────────────────
-  const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; msg: string; onConfirm: () => void }>({ open: false, msg: "", onConfirm: () => {} });
-  const showConfirm = (msg: string, onConfirm: () => void) => setConfirmDialog({ open: true, msg, onConfirm });
+  const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; msg: string; onConfirm: () => void }>({
+    open: false, msg: "", onConfirm: () => {},
+  });
+  const showConfirm = (msg: string, onConfirm: () => void) =>
+    setConfirmDialog({ open: true, msg, onConfirm });
 
   // ─── Dialog cerrar sesión ──────────────────────────────────────────────────
   const [logoutOpen, setLogoutOpen] = useState(false);
@@ -148,6 +157,7 @@ export default function FinalDefenseAdminPage() {
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([]);
   const [selectedJuryIds, setSelectedJuryIds] = useState<number[]>([]);
 
+  // ─── Carga inicial ─────────────────────────────────────────────────────────
   const loadMain = async () => {
     setLoading(true);
     try {
@@ -161,7 +171,7 @@ export default function FinalDefenseAdminPage() {
 
   useEffect(() => { loadMain(); }, []);
 
-  // ✅ Carrera obligatoria — error inline, sin alert, sin "Todas las carreras"
+  // ─── Handlers principales ──────────────────────────────────────────────────
   const handleCreateWindow = async () => {
     if (!startsAt || !endsAt) return showToast("Selecciona fecha inicio/fin válida", "warning");
     if (careerId === "") {
@@ -173,7 +183,7 @@ export default function FinalDefenseAdminPage() {
     try {
       await adminFinalCreateWindow({
         academicPeriodId: periodId ?? null,
-        careerId: careerId,          // siempre un número, nunca null
+        careerId: careerId,
         startsAt: startsAt.format("YYYY-MM-DDTHH:mm:ss"),
         endsAt: endsAt.format("YYYY-MM-DDTHH:mm:ss"),
       });
@@ -277,9 +287,8 @@ export default function FinalDefenseAdminPage() {
     });
   };
 
-  const toggleJury = (id: number) => {
+  const toggleJury = (id: number) =>
     setSelectedJuryIds(prev => prev.includes(id) ? prev.filter(j => j !== id) : [...prev, id]);
-  };
 
   const handleCreateBooking = async () => {
     if (!activeWindow) return;
@@ -308,6 +317,9 @@ export default function FinalDefenseAdminPage() {
     }
   };
 
+  // ─── Estilos reutilizables ─────────────────────────────────────────────────
+
+  // Desktop: popper del DateTimePicker
   const cleanPopperStyle = {
     "& .MuiPaper-root": {
       bgcolor: "#fff", color: "#333", borderRadius: "20px",
@@ -333,6 +345,8 @@ export default function FinalDefenseAdminPage() {
     }
   };
 
+  // Móvil: dialog del MobileDateTimePicker
+  // ✅ SIN viewRenderers — usa selector digital nativo (funciona en ES y EN)
   const mobileDialogStyle = {
     sx: {
       zIndex: 1400,
@@ -341,10 +355,14 @@ export default function FinalDefenseAdminPage() {
       "& .MuiDateTimePickerToolbar-dateContainer .MuiTypography-root": { color: "#fff" },
       "& .MuiDateTimePickerToolbar-timeContainer .MuiTypography-root": { color: "rgba(255,255,255,0.7)" },
       "& .MuiPickersDay-root.Mui-selected": { bgcolor: VERDE_INSTITUCIONAL },
-      "& .MuiClock-pin": { bgcolor: VERDE_INSTITUCIONAL },
-      "& .MuiClockPointer-root": { bgcolor: VERDE_INSTITUCIONAL },
-      "& .MuiClockPointer-thumb": { bgcolor: VERDE_INSTITUCIONAL, borderColor: VERDE_INSTITUCIONAL },
+      // Selector digital de horas/minutos (columnas)
       "& .MuiMultiSectionDigitalClock-root": { width: "100%" },
+      "& .MuiMultiSectionDigitalClockSection-item.Mui-selected": {
+        bgcolor: VERDE_INSTITUCIONAL,
+        color: "#fff",
+        borderRadius: "8px",
+        fontWeight: 900,
+      },
       "& .MuiDialogActions-root .MuiButton-root": { color: VERDE_INSTITUCIONAL, fontWeight: 900 },
       "& .MuiDayCalendar-weekDayLabel": { fontSize: 0 },
       "& .MuiDayCalendar-weekDayLabel:nth-of-type(1)::after": { content: '"L"', fontSize: "0.75rem", fontWeight: 700 },
@@ -378,6 +396,48 @@ export default function FinalDefenseAdminPage() {
     }
   };
 
+  // ─── Helper: renderiza DateTimePicker según dispositivo ───────────────────
+  // Desktop → DateTimePicker con reloj analógico (renderTimeViewClock)
+  // Móvil   → MobileDateTimePicker SIN viewRenderers (selector digital, idioma-agnóstico)
+  const renderDateTimePicker = (
+    label: string,
+    value: Dayjs | null,
+    onChange: (v: Dayjs | null) => void,
+    zIndex = 1300
+  ) => {
+    if (isMobile) {
+      return (
+        <MobileDateTimePicker
+          label={label}
+          value={value}
+          onChange={onChange}
+          ampm={false}
+          // ✅ Sin viewRenderers: usa el selector digital nativo de MUI
+          // Esto evita el bug del reloj "metro" cuando el navegador está en español
+          slotProps={{
+            textField: { fullWidth: true, size: "small", sx: premiumInputStyle },
+            dialog: mobileDialogStyle,
+          }}
+        />
+      );
+    }
+
+    return (
+      <DateTimePicker
+        label={label}
+        value={value}
+        onChange={onChange}
+        ampm={false}
+        viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
+        slotProps={{
+          textField: { fullWidth: true, size: "small", sx: premiumInputStyle },
+          popper: { placement: "bottom-start", sx: { ...cleanPopperStyle, zIndex } },
+        }}
+      />
+    );
+  };
+
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <Box sx={{ height: "100vh", overflow: "hidden", background: "#f5f7f9", display: "flex" }}>
 
@@ -398,7 +458,10 @@ export default function FinalDefenseAdminPage() {
         <AppBar position="sticky" sx={{ bgcolor: VERDE_INSTITUCIONAL, elevation: 2, zIndex: 1100 }}>
           <Toolbar sx={{ justifyContent: "space-between", px: { xs: 1, md: 5 }, minHeight: "56px !important", py: 0.8 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <IconButton onClick={() => setSidebarOpen(true)} sx={{ color: "#fff", mr: 0.5, display: { xs: "flex", sm: "none" } }}>
+              <IconButton
+                onClick={() => setSidebarOpen(true)}
+                sx={{ color: "#fff", mr: 0.5, display: { xs: "flex", sm: "none" } }}
+              >
                 <MenuIcon />
               </IconButton>
               <Box>
@@ -419,43 +482,32 @@ export default function FinalDefenseAdminPage() {
             <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '420px 1fr' }, gap: 4, alignItems: 'start' }}>
 
-                {/* COLUMNA IZQUIERDA */}
+                {/* ── COLUMNA IZQUIERDA: Programar Periodo ──────────────────── */}
                 <Box>
                   <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 2, color: "#333", display: 'flex', alignItems: 'center', gap: 1 }}>
                     <CalendarMonthRoundedIcon fontSize="small" sx={{ color: VERDE_INSTITUCIONAL }} />
                     Programar Periodo
                   </Typography>
                   <Paper elevation={0} sx={{ p: 4, borderRadius: "25px", border: "1px solid #e1e8ed", boxShadow: "0 10px 30px rgba(0,0,0,0.04)" }}>
-                    <LocalizationProvider dateAdapter={AdapterDayjs} >
+                    {/*
+                     * ✅ LocalizationProvider con adapterLocale="es" y localeText en español
+                     *    Esto garantiza que los textos del picker (OK, Cancelar, etc.)
+                     *    salgan siempre en español sin importar el idioma del navegador.
+                     */}
+                    <LocalizationProvider
+                      dateAdapter={AdapterDayjs}
+                      adapterLocale="es"
+                      localeText={esLocaleText}
+                    >
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
 
                         {/* Fecha apertura */}
-                        {isMobile ? (
-                          <MobileDateTimePicker label="Fecha de Apertura" value={startsAt} onChange={(v) => setStartsAt(v)} ampm={false}
-                            viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
-                            slotProps={{ textField: { fullWidth: true, size: "small", sx: premiumInputStyle }, dialog: mobileDialogStyle }}
-                          />
-                        ) : (
-                          <DateTimePicker label="Fecha de Apertura" value={startsAt} onChange={(v) => setStartsAt(v)} ampm={false}
-                            viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
-                            slotProps={{ textField: { fullWidth: true, size: "small", sx: premiumInputStyle }, popper: { placement: 'bottom-start', sx: { ...cleanPopperStyle, zIndex: 1300 } } }}
-                          />
-                        )}
+                        {renderDateTimePicker("Fecha de Apertura", startsAt, setStartsAt)}
 
                         {/* Fecha cierre */}
-                        {isMobile ? (
-                          <MobileDateTimePicker label="Fecha de Cierre" value={endsAt} onChange={(v) => setEndsAt(v)} ampm={false}
-                            viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
-                            slotProps={{ textField: { fullWidth: true, size: "small", sx: premiumInputStyle }, dialog: mobileDialogStyle }}
-                          />
-                        ) : (
-                          <DateTimePicker label="Fecha de Cierre" value={endsAt} onChange={(v) => setEndsAt(v)} ampm={false}
-                            viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
-                            slotProps={{ textField: { fullWidth: true, size: "small", sx: premiumInputStyle }, popper: { placement: 'bottom-start', sx: { ...cleanPopperStyle, zIndex: 1300 } } }}
-                          />
-                        )}
+                        {renderDateTimePicker("Fecha de Cierre", endsAt, setEndsAt)}
 
-                        {/* ✅ Carrera OBLIGATORIA con error inline */}
+                        {/* Carrera OBLIGATORIA con error inline */}
                         <FormControl sx={{ maxWidth: 400 }}>
                           <Select
                             size="small"
@@ -472,7 +524,9 @@ export default function FinalDefenseAdminPage() {
                               }),
                             }}
                             renderValue={(selected: any) => {
-                              if (selected === "") return <span style={{ color: careerError ? "#e74c3c" : "#95a5a6" }}>SELECCIONA CARRERA</span>;
+                              if (selected === "") {
+                                return <span style={{ color: careerError ? "#e74c3c" : "#95a5a6" }}>SELECCIONA CARRERA</span>;
+                              }
                               return careers.find(c => c.id === selected)?.name.toUpperCase() || "SELECCIONA CARRERA";
                             }}
                             MenuProps={{
@@ -480,7 +534,7 @@ export default function FinalDefenseAdminPage() {
                                 sx: {
                                   borderRadius: "16px", mt: 1, maxHeight: 220,
                                   "&::-webkit-scrollbar": { width: "5px" },
-                                  "&::-webkit-scrollbar-thumb": { background: VERDE_INSTITUCIONAL, borderRadius: "10px" }
+                                  "&::-webkit-scrollbar-thumb": { background: VERDE_INSTITUCIONAL, borderRadius: "10px" },
                                 }
                               },
                             }}
@@ -488,7 +542,10 @@ export default function FinalDefenseAdminPage() {
                             <MenuItem value="" disabled>SELECCIONA CARRERA</MenuItem>
                             {careers.map((c) => (
                               <MenuItem key={c.id} value={c.id} sx={{ mb: 0.5, borderRadius: "10px", px: 2 }}>
-                                <ListItemText primary={c.name} primaryTypographyProps={{ fontWeight: 900, fontSize: "0.8rem", textTransform: "uppercase" }} />
+                                <ListItemText
+                                  primary={c.name}
+                                  primaryTypographyProps={{ fontWeight: 900, fontSize: "0.8rem", textTransform: "uppercase" }}
+                                />
                               </MenuItem>
                             ))}
                           </Select>
@@ -506,9 +563,14 @@ export default function FinalDefenseAdminPage() {
                             onClick={handleCreateWindow}
                             disabled={loading}
                             variant="contained"
-                            sx={{ py: 1.5, px: 6, bgcolor: VERDE_INSTITUCIONAL, fontWeight: 900, borderRadius: "50px", boxShadow: `0 8px 20px ${VERDE_INSTITUCIONAL}33`, textTransform: 'uppercase', "&:hover": { bgcolor: VERDE_INSTITUCIONAL, transform: 'scale(1.05)' } }}
+                            sx={{
+                              py: 1.5, px: 6, bgcolor: VERDE_INSTITUCIONAL, fontWeight: 900,
+                              borderRadius: "50px", boxShadow: `0 8px 20px ${VERDE_INSTITUCIONAL}33`,
+                              textTransform: 'uppercase',
+                              "&:hover": { bgcolor: VERDE_INSTITUCIONAL, transform: 'scale(1.05)' },
+                            }}
                           >
-                            {loading ? "Habilitar" : "Habilitar Acceso"}
+                            {loading ? "Habilitando..." : "Habilitar Acceso"}
                           </Button>
                         </Box>
                       </Box>
@@ -516,7 +578,7 @@ export default function FinalDefenseAdminPage() {
                   </Paper>
                 </Box>
 
-                {/* COLUMNA DERECHA */}
+                {/* ── COLUMNA DERECHA: Periodos en Curso ────────────────────── */}
                 <Box>
                   <Typography variant="subtitle1" sx={{ fontWeight: 900, mb: 2, color: "#333", display: 'flex', alignItems: 'center', gap: 1 }}>
                     <AssignmentTurnedInRoundedIcon fontSize="small" sx={{ color: VERDE_INSTITUCIONAL }} />
@@ -525,7 +587,11 @@ export default function FinalDefenseAdminPage() {
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
                     {windows.map((w, index) => (
                       <Fade in={true} timeout={300 + index * 100} key={w.id}>
-                        <Paper sx={{ p: 2.5, borderRadius: "22px", display: "flex", flexDirection: 'column', gap: 1.5, borderLeft: `7px solid ${w.isActive ? VERDE_INSTITUCIONAL : "#bdc3c7"}`, boxShadow: "0 5px 15px rgba(0,0,0,0.03)" }}>
+                        <Paper sx={{
+                          p: 2.5, borderRadius: "22px", display: "flex", flexDirection: 'column', gap: 1.5,
+                          borderLeft: `7px solid ${w.isActive ? VERDE_INSTITUCIONAL : "#bdc3c7"}`,
+                          boxShadow: "0 5px 15px rgba(0,0,0,0.03)",
+                        }}>
                           <Box>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 0.5 }}>
                               <Typography variant="body2" sx={{ fontWeight: 900, color: "#2c3e50", textTransform: 'uppercase' }}>
@@ -545,13 +611,29 @@ export default function FinalDefenseAdminPage() {
                             </Box>
                           </Box>
                           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pt: 1.5, borderTop: '1px solid #f1f2f6', gap: 1 }}>
-                            <Chip size="small" label={w.isActive ? "ACTIVO" : "CERRADO"} sx={{ bgcolor: w.isActive ? `${VERDE_INSTITUCIONAL}15` : "#f5f5f5", color: w.isActive ? VERDE_INSTITUCIONAL : "#b2bec3", fontWeight: 900, fontSize: "0.65rem" }} />
+                            <Chip
+                              size="small"
+                              label={w.isActive ? "ACTIVO" : "CERRADO"}
+                              sx={{
+                                bgcolor: w.isActive ? `${VERDE_INSTITUCIONAL}15` : "#f5f5f5",
+                                color: w.isActive ? VERDE_INSTITUCIONAL : "#b2bec3",
+                                fontWeight: 900, fontSize: "0.65rem",
+                              }}
+                            />
                             <Box sx={{ display: 'flex', gap: 0.5 }}>
-                              <Button onClick={() => openWindowManage(w)} variant="outlined" size="small" sx={{ borderColor: VERDE_INSTITUCIONAL, color: VERDE_INSTITUCIONAL, borderRadius: "50px", fontWeight: 900, fontSize: '0.7rem', py: 0.3, px: 1.5 }}>
+                              <Button
+                                onClick={() => openWindowManage(w)}
+                                variant="outlined" size="small"
+                                sx={{ borderColor: VERDE_INSTITUCIONAL, color: VERDE_INSTITUCIONAL, borderRadius: "50px", fontWeight: 900, fontSize: '0.7rem', py: 0.3, px: 1.5 }}
+                              >
                                 Gestionar
                               </Button>
                               {w.isActive && (
-                                <Button onClick={() => handleCloseWindow(w.id)} variant="contained" size="small" sx={{ bgcolor: "#ff7675", borderRadius: "50px", fontWeight: 900, fontSize: '0.7rem', py: 0.3, px: 1.5 }}>
+                                <Button
+                                  onClick={() => handleCloseWindow(w.id)}
+                                  variant="contained" size="small"
+                                  sx={{ bgcolor: "#ff7675", borderRadius: "50px", fontWeight: 900, fontSize: '0.7rem', py: 0.3, px: 1.5 }}
+                                >
                                   Cerrar
                                 </Button>
                               )}
@@ -567,6 +649,7 @@ export default function FinalDefenseAdminPage() {
                     )}
                   </Box>
                 </Box>
+
               </Box>
             </Container>
           </Fade>
@@ -580,8 +663,11 @@ export default function FinalDefenseAdminPage() {
         </Box>
       </Box>
 
-      {/* MODAL GESTIONAR VENTANA */}
-      <Dialog open={openManage} onClose={() => setOpenManage(false)} maxWidth="md"
+      {/* ── MODAL: GESTIONAR VENTANA ────────────────────────────────────────── */}
+      <Dialog
+        open={openManage}
+        onClose={() => setOpenManage(false)}
+        maxWidth="md"
         PaperProps={{ sx: { borderRadius: "25px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", width: '90%', maxWidth: 800 } }}
       >
         <DialogTitle sx={{ fontWeight: 900, color: VERDE_INSTITUCIONAL, borderBottom: "1px solid #f1f2f6", py: 1.5, px: 3 }}>
@@ -592,11 +678,13 @@ export default function FinalDefenseAdminPage() {
             </Typography>
           </Box>
         </DialogTitle>
+
         <DialogContent dividers sx={{ p: 3 }}>
           {!activeWindow ? (
             <Typography sx={{ color: "#777" }}>Sin ventana seleccionada.</Typography>
           ) : (
             <Box sx={{ display: 'grid', gap: 3 }}>
+
               {/* RÚBRICA PDF */}
               <Paper elevation={0} sx={{ p: 3, borderRadius: "20px", border: "1px solid #e1e8ed", bgcolor: "#fafbfc" }}>
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2, mb: 2 }}>
@@ -604,10 +692,18 @@ export default function FinalDefenseAdminPage() {
                     <DescriptionRoundedIcon sx={{ color: VERDE_INSTITUCIONAL }} />
                     <Typography sx={{ fontWeight: 900 }}>Rúbrica (PDF)</Typography>
                   </Box>
-                  <Chip label={activeWindow?.hasRubric ? "Rúbrica ✅" : "Sin rúbrica"} color={activeWindow?.hasRubric ? "success" : "default"} variant={activeWindow?.hasRubric ? "filled" : "outlined"} sx={{ fontWeight: 900 }} />
+                  <Chip
+                    label={activeWindow?.hasRubric ? "Rúbrica ✅" : "Sin rúbrica"}
+                    color={activeWindow?.hasRubric ? "success" : "default"}
+                    variant={activeWindow?.hasRubric ? "filled" : "outlined"}
+                    sx={{ fontWeight: 900 }}
+                  />
                 </Box>
                 <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
-                  <Button variant="outlined" component="label" startIcon={<UploadFileRoundedIcon />}
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    startIcon={<UploadFileRoundedIcon />}
                     sx={{ borderColor: VERDE_INSTITUCIONAL, color: VERDE_INSTITUCIONAL, fontWeight: 900, borderRadius: "50px" }}
                   >
                     Seleccionar PDF
@@ -616,7 +712,12 @@ export default function FinalDefenseAdminPage() {
                   <Typography sx={{ color: "#666", fontSize: "0.9rem", flex: 1 }}>
                     {rubricFile ? `📄 ${rubricFile.name}` : "Ningún archivo seleccionado"}
                   </Typography>
-                  <Button onClick={handleUploadRubric} disabled={loading || !rubricFile} variant="contained" sx={{ bgcolor: VERDE_INSTITUCIONAL, fontWeight: 900, borderRadius: "50px", px: 3 }}>
+                  <Button
+                    onClick={handleUploadRubric}
+                    disabled={loading || !rubricFile}
+                    variant="contained"
+                    sx={{ bgcolor: VERDE_INSTITUCIONAL, fontWeight: 900, borderRadius: "50px", px: 3 }}
+                  >
                     Subir rúbrica
                   </Button>
                 </Box>
@@ -628,19 +729,73 @@ export default function FinalDefenseAdminPage() {
                   <AccessTimeRoundedIcon sx={{ color: VERDE_INSTITUCIONAL }} />
                   <Typography sx={{ fontWeight: 900 }}>Crear Slot de Tiempo</Typography>
                 </Box>
-                <LocalizationProvider dateAdapter={AdapterDayjs} >
+                {/*
+                 * ✅ LocalizationProvider con adapterLocale="es" y localeText en español
+                 *    Aplica también dentro del modal para los pickers de slots.
+                 */}
+                <LocalizationProvider
+                  dateAdapter={AdapterDayjs}
+                  adapterLocale="es"
+                  localeText={esLocaleText}
+                >
                   <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                    <DateTimePicker label="Inicio del Slot" value={slotStart} onChange={(v) => setSlotStart(v)} ampm={false}
-                      viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
-                      slotProps={{ textField: { size: "small", sx: { width: 250, ...premiumInputStyle } }, popper: { sx: { ...cleanPopperStyle, zIndex: 1400 } } }}
-                    />
-                    <DateTimePicker label="Fin del Slot" value={slotEnd} onChange={(v) => setSlotEnd(v)} ampm={false}
-                      viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
-                      slotProps={{ textField: { size: "small", sx: { width: 250, ...premiumInputStyle } }, popper: { sx: { ...cleanPopperStyle, zIndex: 1400 } } }}
-                    />
+                    {/* ✅ Usa el helper — móvil: selector digital, desktop: reloj analógico */}
+                    {isMobile ? (
+                      <MobileDateTimePicker
+                        label="Inicio del Slot"
+                        value={slotStart}
+                        onChange={(v) => setSlotStart(v)}
+                        ampm={false}
+                        slotProps={{
+                          textField: { fullWidth: true, size: "small", sx: premiumInputStyle },
+                          dialog: mobileDialogStyle,
+                        }}
+                      />
+                    ) : (
+                      <DateTimePicker
+                        label="Inicio del Slot"
+                        value={slotStart}
+                        onChange={(v) => setSlotStart(v)}
+                        ampm={false}
+                        viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
+                        slotProps={{
+                          textField: { size: "small", sx: { width: 250, ...premiumInputStyle } },
+                          popper: { sx: { ...cleanPopperStyle, zIndex: 1400 } },
+                        }}
+                      />
+                    )}
+                    {isMobile ? (
+                      <MobileDateTimePicker
+                        label="Fin del Slot"
+                        value={slotEnd}
+                        onChange={(v) => setSlotEnd(v)}
+                        ampm={false}
+                        slotProps={{
+                          textField: { fullWidth: true, size: "small", sx: premiumInputStyle },
+                          dialog: mobileDialogStyle,
+                        }}
+                      />
+                    ) : (
+                      <DateTimePicker
+                        label="Fin del Slot"
+                        value={slotEnd}
+                        onChange={(v) => setSlotEnd(v)}
+                        ampm={false}
+                        viewRenderers={{ hours: renderTimeViewClock, minutes: renderTimeViewClock }}
+                        slotProps={{
+                          textField: { size: "small", sx: { width: 250, ...premiumInputStyle } },
+                          popper: { sx: { ...cleanPopperStyle, zIndex: 1400 } },
+                        }}
+                      />
+                    )}
                   </Box>
                 </LocalizationProvider>
-                <Button onClick={handleCreateSlot} disabled={loading} variant="contained" sx={{ bgcolor: VERDE_INSTITUCIONAL, fontWeight: 900, borderRadius: "50px", px: 6, maxWidth: 400, mx: 'auto', display: 'block' }}>
+                <Button
+                  onClick={handleCreateSlot}
+                  disabled={loading}
+                  variant="contained"
+                  sx={{ bgcolor: VERDE_INSTITUCIONAL, fontWeight: 900, borderRadius: "50px", px: 6, maxWidth: 400, mx: 'auto', display: 'block' }}
+                >
                   Crear Slot
                 </Button>
               </Paper>
@@ -652,9 +807,13 @@ export default function FinalDefenseAdminPage() {
                   <Typography sx={{ fontWeight: 900 }}>Crear Reserva (Slot + Estudiantes + Jurados)</Typography>
                 </Box>
 
+                {/* Seleccionar Slot */}
                 <Typography sx={{ fontWeight: 800, mt: 2, mb: 1, fontSize: "0.9rem" }}>📅 Seleccionar Slot</Typography>
                 <FormControl sx={{ maxWidth: 400 }}>
-                  <Select size="small" displayEmpty value={selectedSlotId}
+                  <Select
+                    size="small"
+                    displayEmpty
+                    value={selectedSlotId}
                     onChange={(e) => setSelectedSlotId(e.target.value ? Number(e.target.value) : "")}
                     sx={ovalSelectStyle}
                     renderValue={(selected: any) => {
@@ -677,12 +836,16 @@ export default function FinalDefenseAdminPage() {
                   </Select>
                 </FormControl>
 
+                {/* Estudiantes */}
                 <Typography sx={{ fontWeight: 800, mt: 3, mb: 1, fontSize: "0.9rem" }}>👨‍🎓 Estudiantes (máximo 2)</Typography>
                 {!activeWindow.careerId && (
                   <Box sx={{ mb: 2 }}>
                     <Typography sx={{ fontSize: "0.85rem", color: "#666", mb: 1 }}>Selecciona carrera para ver estudiantes:</Typography>
                     <FormControl sx={{ maxWidth: 400 }}>
-                      <Select size="small" displayEmpty value={manageCareerId}
+                      <Select
+                        size="small"
+                        displayEmpty
+                        value={manageCareerId}
                         onChange={async (e) => {
                           const cid = e.target.value ? Number(e.target.value) : "";
                           setManageCareerId(cid);
@@ -700,7 +863,10 @@ export default function FinalDefenseAdminPage() {
                         <MenuItem value="" disabled>SELECCIONA CARRERA</MenuItem>
                         {careers.map((c) => (
                           <MenuItem key={c.id} value={c.id}>
-                            <ListItemText primary={c.name} primaryTypographyProps={{ fontWeight: 900, fontSize: "0.8rem", textTransform: "uppercase" }} />
+                            <ListItemText
+                              primary={c.name}
+                              primaryTypographyProps={{ fontWeight: 900, fontSize: "0.8rem", textTransform: "uppercase" }}
+                            />
                           </MenuItem>
                         ))}
                       </Select>
@@ -714,9 +880,17 @@ export default function FinalDefenseAdminPage() {
                       const checked = selectedStudentIds.includes(st.id);
                       const hasProject = !!st.projectName?.trim();
                       return (
-                        <Box key={st.id}
+                        <Box
+                          key={st.id}
                           onClick={() => { if (!hasProject) return; toggleStudent(st.id); }}
-                          sx={{ p: 2, borderRadius: "16px", border: `2px solid ${checked ? VERDE_INSTITUCIONAL : "#eee"}`, cursor: hasProject ? "pointer" : "not-allowed", background: checked ? `${VERDE_INSTITUCIONAL}08` : "#fff", opacity: hasProject ? 1 : 0.5, transition: "all 0.2s" }}
+                          sx={{
+                            p: 2, borderRadius: "16px",
+                            border: `2px solid ${checked ? VERDE_INSTITUCIONAL : "#eee"}`,
+                            cursor: hasProject ? "pointer" : "not-allowed",
+                            background: checked ? `${VERDE_INSTITUCIONAL}08` : "#fff",
+                            opacity: hasProject ? 1 : 0.5,
+                            transition: "all 0.2s",
+                          }}
                         >
                           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -749,7 +923,14 @@ export default function FinalDefenseAdminPage() {
 
                 <Button
                   onClick={handleCreateBooking}
-                  disabled={loading || (!activeWindow.careerId && !manageCareerId) || !selectedSlotId || selectedStudentIds.length < 1 || selectedStudentIds.length > 2 || selectedJuryIds.length < 1}
+                  disabled={
+                    loading ||
+                    (!activeWindow.careerId && !manageCareerId) ||
+                    !selectedSlotId ||
+                    selectedStudentIds.length < 1 ||
+                    selectedStudentIds.length > 2 ||
+                    selectedJuryIds.length < 1
+                  }
                   variant="contained"
                   sx={{ mt: 3, bgcolor: VERDE_INSTITUCIONAL, fontWeight: 900, borderRadius: "50px", py: 1.5, px: 6, maxWidth: 400, mx: 'auto', display: 'block' }}
                 >
@@ -759,15 +940,23 @@ export default function FinalDefenseAdminPage() {
             </Box>
           )}
         </DialogContent>
+
         <DialogActions sx={{ p: 2, borderTop: '1px solid #f1f2f6' }}>
-          <Button onClick={() => setOpenManage(false)} sx={{ fontWeight: 900, borderRadius: "50px", px: 3, color: VERDE_INSTITUCIONAL }}>
+          <Button
+            onClick={() => setOpenManage(false)}
+            sx={{ fontWeight: 900, borderRadius: "50px", px: 3, color: VERDE_INSTITUCIONAL }}
+          >
             Cerrar
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* ── DIALOG CERRAR SESIÓN ─────────────────────────────────────────────── */}
-      <Dialog open={logoutOpen} onClose={() => setLogoutOpen(false)} maxWidth="xs" fullWidth
+      {/* ── DIALOG: CERRAR SESIÓN ────────────────────────────────────────────── */}
+      <Dialog
+        open={logoutOpen}
+        onClose={() => setLogoutOpen(false)}
+        maxWidth="xs"
+        fullWidth
         PaperProps={{ sx: { borderRadius: "16px", p: 1 } }}
       >
         <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.5, pb: 1 }}>
@@ -782,19 +971,29 @@ export default function FinalDefenseAdminPage() {
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button onClick={() => setLogoutOpen(false)} variant="outlined" fullWidth
-            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, borderColor: "#ddd", color: "#555" }}>
+          <Button
+            onClick={() => setLogoutOpen(false)}
+            variant="outlined"
+            fullWidth
+            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, borderColor: "#ddd", color: "#555" }}
+          >
             Cancelar
           </Button>
-          <Button onClick={() => { logout(); nav("/"); }} variant="contained" fullWidth
-            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, bgcolor: VERDE_INSTITUCIONAL, "&:hover": { bgcolor: "#006666" } }}>
+          <Button
+            onClick={() => { logout(); nav("/"); }}
+            variant="contained"
+            fullWidth
+            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, bgcolor: VERDE_INSTITUCIONAL, "&:hover": { bgcolor: "#006666" } }}
+          >
             Cerrar sesión
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* ── DIALOG CONFIRMAR ACCIÓN ──────────────────────────────────────────── */}
-      <Dialog open={confirmDialog.open} onClose={() => setConfirmDialog(c => ({ ...c, open: false }))}
+      {/* ── DIALOG: CONFIRMAR ACCIÓN ─────────────────────────────────────────── */}
+      <Dialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog(c => ({ ...c, open: false }))}
         PaperProps={{ sx: { borderRadius: "16px", p: 1, minWidth: 320 } }}
       >
         <DialogTitle sx={{ fontWeight: 900, color: "#2c3e50", pb: 1 }}>¿Confirmar acción?</DialogTitle>
@@ -802,24 +1001,41 @@ export default function FinalDefenseAdminPage() {
           <Typography variant="body2" color="text.secondary">{confirmDialog.msg}</Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button onClick={() => setConfirmDialog(c => ({ ...c, open: false }))} variant="outlined" fullWidth
-            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, borderColor: "#ddd", color: "#555" }}>
+          <Button
+            onClick={() => setConfirmDialog(c => ({ ...c, open: false }))}
+            variant="outlined"
+            fullWidth
+            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, borderColor: "#ddd", color: "#555" }}
+          >
             Cancelar
           </Button>
-          <Button onClick={() => { setConfirmDialog(c => ({ ...c, open: false })); confirmDialog.onConfirm(); }}
-            variant="contained" fullWidth
-            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, bgcolor: "#ff7675", "&:hover": { bgcolor: "#d63031" } }}>
+          <Button
+            onClick={() => { setConfirmDialog(c => ({ ...c, open: false })); confirmDialog.onConfirm(); }}
+            variant="contained"
+            fullWidth
+            sx={{ borderRadius: "10px", textTransform: "none", fontWeight: 700, bgcolor: "#ff7675", "&:hover": { bgcolor: "#d63031" } }}
+          >
             Confirmar
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* ── SNACKBAR ─────────────────────────────────────────────────────────── */}
-      <Snackbar open={toast.open} autoHideDuration={4000} onClose={() => setToast(t => ({ ...t, open: false }))}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={4000}
+        onClose={() => setToast(t => ({ ...t, open: false }))}
         anchorOrigin={{ vertical: "top", horizontal: "right" }}
       >
-        <Alert onClose={() => setToast(t => ({ ...t, open: false }))} severity={toast.type} variant="filled"
-          icon={toast.type === "success" ? <CheckCircleRoundedIcon /> : toast.type === "error" ? <ErrorRoundedIcon /> : <WarningAmberRoundedIcon />}
+        <Alert
+          onClose={() => setToast(t => ({ ...t, open: false }))}
+          severity={toast.type}
+          variant="filled"
+          icon={
+            toast.type === "success" ? <CheckCircleRoundedIcon /> :
+            toast.type === "error" ? <ErrorRoundedIcon /> :
+            <WarningAmberRoundedIcon />
+          }
           sx={{ borderRadius: "16px", fontWeight: 700, boxShadow: "0 8px 24px rgba(0,0,0,0.15)" }}
         >
           {toast.msg}
