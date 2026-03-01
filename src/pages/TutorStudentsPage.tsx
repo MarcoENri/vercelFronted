@@ -23,9 +23,14 @@ import {
   Snackbar,
   Alert,
   Collapse,
+  IconButton, // ── AÑADIDO ──────────────────────────────────────────────────
 } from "@mui/material";
 
-import { Logout as LogoutIcon, SyncRounded } from "@mui/icons-material";
+import {
+  Logout as LogoutIcon,
+  SyncRounded,
+  Menu as MenuIcon, // ── AÑADIDO ──────────────────────────────────────────────
+} from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import { logout } from "../services/authService";
 import type { TutorStudentRow } from "../services/tutorService";
@@ -68,6 +73,9 @@ export default function TutorStudentsPage() {
     logout();
     nav("/");
   };
+
+  // ── AÑADIDO: ref para el toggle del sidebar móvil ────────────────────────
+  const toggleMobileRef = useRef<() => void>(() => {});
 
   // ── NUEVO: refs y estados para detectar cambio de período ─────────────────
   const prevPeriodIdRef = useRef<number | null>(null);
@@ -173,6 +181,7 @@ export default function TutorStudentsPage() {
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "#f0f2f5" }}>
+      {/* ── AÑADIDO: expone el toggle al ref ──────────────────────────────── */}
       <TutorSidebar
         onLogout={() => setLogoutOpen(true)}
         verde={VERDE_INSTITUCIONAL}
@@ -184,14 +193,16 @@ export default function TutorStudentsPage() {
         tutorRole={tutorInfo.role}
         photoPreview={photoPreview}
         onPhotoChange={(photo) => setPhotoPreview(photo)}
+        onToggleMobileRef={(fn) => { toggleMobileRef.current = fn; }}
       />
 
-      <Box
+            <Box
         sx={{
-          flexGrow: 1,
+          flex: "1 1 0",
           display: "flex",
           flexDirection: "column",
           minWidth: 0,
+          width: 0,
           height: "100vh",
           overflow: "hidden",
         }}
@@ -205,31 +216,31 @@ export default function TutorStudentsPage() {
             flexShrink: 0,
             bgcolor: VERDE_INSTITUCIONAL,
             color: "white",
-            py: 2,
+            py: 3.2,
             px: 3,
             boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            width: "100%",
+            boxSizing: "border-box",
           }}
         >
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              maxWidth: "1200px",
-              mx: "auto",
-              width: "100%",
-            }}
+          {/* Botón hamburguesa — solo visible en móvil/tablet, oculto en desktop */}
+          <IconButton
+            onClick={() => toggleMobileRef.current?.()}
+            sx={{ display: { xs: "flex", md: "none" }, color: "white", p: 0.5, flexShrink: 0 }}
           >
-            <Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1 }}>
-                Mis Estudiantes
-              </Typography>
-              <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                {/* NUEVO: muestra el nombre del período en lugar del ID */}
-                Listado general — {activePeriod?.name ?? `Periodo: ${periodId ?? "Cargando..."}`}
-              </Typography>
-            </Box>
-            
+            <MenuIcon />
+          </IconButton>
+
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, lineHeight: 1 }}>
+              Mis Estudiantes
+            </Typography>
+            <Typography variant="caption" sx={{ opacity: 0.8 }}>
+              Listado general — {activePeriod?.name ?? `Periodo: ${periodId ?? "Cargando..."}`}
+            </Typography>
           </Box>
         </Box>
 

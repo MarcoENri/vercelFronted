@@ -25,7 +25,6 @@ import {
   Dashboard as DashboardIcon,
   HowToReg as HowToRegIcon,
   AssignmentInd as AssignmentIndIcon,
-  PersonAdd as PersonAddIcon,
   Logout as LogoutIcon,
   PhotoCamera as PhotoCameraIcon,
   Person as PersonIcon,
@@ -48,6 +47,7 @@ interface CoordinatorSidebarProps {
   photoPreview?: string | null;
   onLogout: () => void;
   onPhotoChange?: (photo: string) => void;
+  onToggleMobileRef?: (fn: () => void) => void;
 }
 
 export default function CoordinatorSidebar({
@@ -59,8 +59,8 @@ export default function CoordinatorSidebar({
   photoPreview = null,
   onLogout,
   onPhotoChange,
+  onToggleMobileRef,
 }: CoordinatorSidebarProps) {
-   console.log("Sidebar props:", { coordinatorName, coordinatorUsername });
   const nav = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -71,6 +71,11 @@ export default function CoordinatorSidebar({
   const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Expone la función toggle al padre para que la llame desde su header
+  if (onToggleMobileRef) {
+    onToggleMobileRef(() => setMobileOpen((prev) => !prev));
+  }
+
   const menuItems = [
     {
       text: "Mis Estudiantes",
@@ -78,14 +83,12 @@ export default function CoordinatorSidebar({
       path: "/coordinator",
       tooltip: "Ver todos mis estudiantes",
     },
-    // ...
-{
-  text: "Predefensa (Jurado)",
-  icon: <HowToRegIcon />,
-  path: "/coordinator/predefense", // <--- Ruta específica
-  tooltip: "Gestionar predefensas como jurado",
-},
-// ...
+    {
+      text: "Predefensa (Jurado)",
+      icon: <HowToRegIcon />,
+      path: "/coordinator/predefense",
+      tooltip: "Gestionar predefensas como jurado",
+    },
     {
       text: "Defensa Final (Jurado)",
       icon: <AssignmentIndIcon />,
@@ -105,36 +108,26 @@ export default function CoordinatorSidebar({
       alert("La imagen es muy grande. Máximo 5MB");
       return;
     }
-
     const reader = new FileReader();
     reader.onloadend = () => {
       const photoData = reader.result as string;
       localStorage.setItem("coordinatorPhoto", photoData);
-      if (onPhotoChange) {
-        onPhotoChange(photoData);
-      }
+      if (onPhotoChange) onPhotoChange(photoData);
     };
     reader.readAsDataURL(file);
   };
 
   const handleNavigation = (path: string) => {
     nav(path);
-    if (isMobile) {
-      setMobileOpen(false);
-    }
-  };
-
-  const handleToggle = () => {
-    if (isMobile) {
-      setMobileOpen(!mobileOpen);
-    } else {
-      setOpen(!open);
-    }
+    if (isMobile) setMobileOpen(false);
   };
 
   const isActive = (path: string) => {
     if (path === "/coordinator") {
-      return location.pathname === "/coordinator" || location.pathname.startsWith("/coordinator/students");
+      return (
+        location.pathname === "/coordinator" ||
+        location.pathname.startsWith("/coordinator/students")
+      );
     }
     return location.pathname === path;
   };
@@ -157,27 +150,25 @@ export default function CoordinatorSidebar({
           alignItems: "center",
           justifyContent: "space-between",
           minHeight: 80,
-          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+          borderBottom: "1px solid rgba(255,255,255,0.1)",
         }}
       >
         {(isMobile || open) && (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flex: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flex: 1, minWidth: 0 }}>
             <Avatar
               src={photoPreview || undefined}
               onClick={() => setProfileDrawerOpen(true)}
               sx={{
                 width: 48,
                 height: 48,
+                flexShrink: 0,
                 bgcolor: "white",
                 color: VERDE_INSTITUCIONAL,
                 fontWeight: 900,
-                border: "2px solid rgba(255, 255, 255, 0.3)",
+                border: "2px solid rgba(255,255,255,0.3)",
                 cursor: "pointer",
                 transition: "all 0.3s ease",
-                "&:hover": {
-                  transform: "scale(1.05)",
-                  border: "2px solid white",
-                },
+                "&:hover": { transform: "scale(1.05)", border: "2px solid white" },
               }}
             >
               {coordinatorInitials}
@@ -196,33 +187,35 @@ export default function CoordinatorSidebar({
               >
                 {coordinatorName}
               </Typography>
-              <Typography
-                variant="caption"
-                sx={{
-                  opacity: 0.8,
-                  fontSize: "0.75rem",
-                  display: "block",
-                }}
-              >
+              <Typography variant="caption" sx={{ opacity: 0.8, fontSize: "0.75rem", display: "block" }}>
                 Coordinador
               </Typography>
             </Box>
           </Box>
         )}
+
+        {/* Desktop: colapsar/expandir */}
         {!isMobile && (
           <IconButton
-            onClick={handleToggle}
-            sx={{
-              color: "white",
-              ml: isMobile || open ? 0 : "auto",
-            }}
+            onClick={() => setOpen((prev) => !prev)}
+            sx={{ color: "white", ml: open ? 0 : "auto" }}
           >
             {open ? <ChevronLeftIcon /> : <MenuIcon />}
           </IconButton>
         )}
+
+        {/* Móvil: cerrar drawer desde dentro */}
+        {isMobile && (
+          <IconButton
+            onClick={() => setMobileOpen(false)}
+            sx={{ color: "white", ml: 0.5, flexShrink: 0 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        )}
       </Box>
 
-      {/* MENÚ DE NAVEGACIÓN */}
+      {/* MENÚ */}
       <Box sx={{ flex: 1, overflowY: "auto", py: 2 }}>
         <List sx={{ px: 1 }}>
           {menuItems.map((item, index) => (
@@ -240,18 +233,11 @@ export default function CoordinatorSidebar({
                     borderRadius: 2,
                     minHeight: 48,
                     transition: "all 0.3s ease",
-                    bgcolor: isActive(item.path)
-                      ? "rgba(255, 255, 255, 0.15)"
-                      : "transparent",
-                    "&:hover": {
-                      bgcolor: "rgba(255, 255, 255, 0.1)",
-                      transform: "translateX(4px)",
-                    },
+                    bgcolor: isActive(item.path) ? "rgba(255,255,255,0.15)" : "transparent",
+                    "&:hover": { bgcolor: "rgba(255,255,255,0.1)", transform: "translateX(4px)" },
                     "&.Mui-selected": {
-                      bgcolor: "rgba(255, 255, 255, 0.15)",
-                      "&:hover": {
-                        bgcolor: "rgba(255, 255, 255, 0.2)",
-                      },
+                      bgcolor: "rgba(255,255,255,0.15)",
+                      "&:hover": { bgcolor: "rgba(255,255,255,0.2)" },
                     },
                     justifyContent: open || isMobile ? "initial" : "center",
                     px: 2,
@@ -263,9 +249,7 @@ export default function CoordinatorSidebar({
                       mr: open || isMobile ? 2 : "auto",
                       justifyContent: "center",
                       color: "white",
-                      "& svg": {
-                        fontSize: 24,
-                      },
+                      "& svg": { fontSize: 24 },
                     }}
                   >
                     {item.icon}
@@ -286,15 +270,11 @@ export default function CoordinatorSidebar({
         </List>
       </Box>
 
-      <Divider sx={{ bgcolor: "rgba(255, 255, 255, 0.1)" }} />
+      <Divider sx={{ bgcolor: "rgba(255,255,255,0.1)" }} />
 
-      {/* BOTÓN DE CERRAR SESIÓN */}
+      {/* CERRAR SESIÓN */}
       <Box sx={{ p: 1 }}>
-        <Tooltip
-          title={!open && !isMobile ? "Cerrar Sesión" : ""}
-          placement="right"
-          arrow
-        >
+        <Tooltip title={!open && !isMobile ? "Cerrar Sesión" : ""} placement="right" arrow>
           <ListItemButton
             onClick={onLogout}
             sx={{
@@ -303,10 +283,7 @@ export default function CoordinatorSidebar({
               justifyContent: open || isMobile ? "initial" : "center",
               px: 2,
               transition: "all 0.3s ease",
-              "&:hover": {
-                bgcolor: "rgba(255, 0, 0, 0.2)",
-                transform: "translateX(4px)",
-              },
+              "&:hover": { bgcolor: "rgba(255,0,0,0.2)", transform: "translateX(4px)" },
             }}
           >
             <ListItemIcon
@@ -322,11 +299,7 @@ export default function CoordinatorSidebar({
             {(open || isMobile) && (
               <ListItemText
                 primary="Cerrar Sesión"
-                primaryTypographyProps={{
-                  fontSize: "0.9rem",
-                  fontWeight: 600,
-                  color: "#ffcdd2",
-                }}
+                primaryTypographyProps={{ fontSize: "0.9rem", fontWeight: 600, color: "#ffcdd2" }}
               />
             )}
           </ListItemButton>
@@ -337,56 +310,29 @@ export default function CoordinatorSidebar({
 
   return (
     <>
-      {/* BOTÓN HAMBURGUESA MÓVIL */}
-      {isMobile && (
-        <IconButton
-          onClick={handleToggle}
-          sx={{
-            position: "fixed",
-            top: 16,
-            left: 16,
-            zIndex: 1300,
-            bgcolor: VERDE_INSTITUCIONAL,
-            color: "white",
-            "&:hover": {
-              bgcolor: VERDE_INSTITUCIONAL,
-              opacity: 0.9,
-            },
-          }}
-        >
-          <MenuIcon />
-        </IconButton>
-      )}
-
-      {/* DRAWER MÓVIL */}
+      {/* MÓVIL: Drawer temporal con backdrop */}
       {isMobile && (
         <Drawer
           variant="temporary"
           open={mobileOpen}
           onClose={() => setMobileOpen(false)}
-          ModalProps={{
-            keepMounted: true,
-          }}
+          ModalProps={{ keepMounted: true }}
           sx={{
-            display: { xs: "block", md: "none" },
-            "& .MuiDrawer-paper": {
-              width: DRAWER_WIDTH,
-              boxSizing: "border-box",
-              border: "none",
-            },
+            zIndex: 1300,
+            "& .MuiDrawer-paper": { width: DRAWER_WIDTH, boxSizing: "border-box", border: "none" },
+            "& .MuiBackdrop-root": { backgroundColor: "rgba(0,0,0,0.55)" },
           }}
         >
           {drawerContent}
         </Drawer>
       )}
 
-      {/* DRAWER DESKTOP */}
+      {/* DESKTOP: Drawer permanente colapsable */}
       {!isMobile && (
         <Drawer
           variant="permanent"
           open={open}
           sx={{
-            display: { xs: "none", md: "block" },
             width: open ? DRAWER_WIDTH : DRAWER_WIDTH_COLLAPSED,
             flexShrink: 0,
             transition: theme.transitions.create("width", {
@@ -397,11 +343,11 @@ export default function CoordinatorSidebar({
               width: open ? DRAWER_WIDTH : DRAWER_WIDTH_COLLAPSED,
               boxSizing: "border-box",
               overflowX: "hidden",
+              border: "none",
               transition: theme.transitions.create("width", {
                 easing: theme.transitions.easing.sharp,
                 duration: theme.transitions.duration.enteringScreen,
               }),
-              border: "none",
             },
           }}
         >
@@ -409,7 +355,7 @@ export default function CoordinatorSidebar({
         </Drawer>
       )}
 
-      {/* DRAWER DE PERFIL */}
+      {/* DRAWER PERFIL */}
       <Drawer
         anchor="right"
         open={profileDrawerOpen}
@@ -423,7 +369,6 @@ export default function CoordinatorSidebar({
         }}
       >
         <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-          {/* HEADER DEL DRAWER */}
           <Box
             sx={{
               p: 2,
@@ -448,25 +393,15 @@ export default function CoordinatorSidebar({
             </Box>
           </Box>
 
-          {/* CONTENIDO DEL PERFIL */}
           <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
-            {/* AVATAR Y CAMBIAR FOTO */}
             <Box sx={{ textAlign: "center", mb: 2.5 }}>
               <Avatar
                 src={photoPreview || undefined}
                 sx={{
-                  width: 90,
-                  height: 90,
-                  mx: "auto",
-                  mb: 1.5,
-                  bgcolor: VERDE_INSTITUCIONAL,
-                  cursor: "pointer",
-                  border: "3px solid #f0f2f5",
-                  transition: "all 0.3s ease",
-                  "&:hover": {
-                    transform: "scale(1.05)",
-                    border: `3px solid ${VERDE_INSTITUCIONAL}`,
-                  },
+                  width: 90, height: 90, mx: "auto", mb: 1.5,
+                  bgcolor: VERDE_INSTITUCIONAL, cursor: "pointer",
+                  border: "3px solid #f0f2f5", transition: "all 0.3s ease",
+                  "&:hover": { transform: "scale(1.05)", border: `3px solid ${VERDE_INSTITUCIONAL}` },
                 }}
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -486,12 +421,7 @@ export default function CoordinatorSidebar({
                 variant="text"
                 startIcon={<PhotoCameraIcon fontSize="small" />}
                 onClick={() => fileInputRef.current?.click()}
-                sx={{
-                  color: VERDE_INSTITUCIONAL,
-                  textTransform: "none",
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                }}
+                sx={{ color: VERDE_INSTITUCIONAL, textTransform: "none", fontSize: "0.75rem", fontWeight: 600 }}
               >
                 Cambiar Foto
               </Button>
@@ -499,132 +429,49 @@ export default function CoordinatorSidebar({
 
             <Divider sx={{ mb: 2 }} />
 
-            {/* INFORMACIÓN DEL PERFIL */}
             <Stack spacing={1.2}>
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 1.2,
-                  bgcolor: "rgba(248, 249, 250, 0.9)",
-                  borderRadius: 5,
-                  border: "1px solid #e9ecef",
-                }}
-              >
+              <Paper elevation={0} sx={{ p: 1.2, bgcolor: "rgba(248,249,250,0.9)", borderRadius: 5, border: "1px solid #e9ecef" }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
                   <AccountCircleIcon sx={{ color: VERDE_INSTITUCIONAL, fontSize: 20 }} />
                   <Box sx={{ flex: 1 }}>
-                    <Typography
-                      variant="caption"
-                      sx={{ color: "#6c757d", fontWeight: 600, fontSize: "0.65rem" }}
-                    >
-                      Username
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ fontWeight: 600, fontSize: "0.813rem" }}
-                    >
+                    <Typography variant="caption" sx={{ color: "#6c757d", fontWeight: 600, fontSize: "0.65rem" }}>Username</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.813rem" }}>
                       {coordinatorUsername || "No disponible"}
                     </Typography>
                   </Box>
                 </Box>
               </Paper>
 
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 1.2,
-                  bgcolor: "rgba(248, 249, 250, 0.9)",
-                  borderRadius: 5,
-                  border: "1px solid #e9ecef",
-                }}
-              >
+              <Paper elevation={0} sx={{ p: 1.2, bgcolor: "rgba(248,249,250,0.9)", borderRadius: 5, border: "1px solid #e9ecef" }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
                   <PersonIcon sx={{ color: VERDE_INSTITUCIONAL, fontSize: 20 }} />
                   <Box sx={{ flex: 1 }}>
-                    <Typography
-                      variant="caption"
-                      sx={{ color: "#6c757d", fontWeight: 600, fontSize: "0.65rem" }}
-                    >
-                      Nombre Completo
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ fontWeight: 600, fontSize: "0.813rem" }}
-                    >
+                    <Typography variant="caption" sx={{ color: "#6c757d", fontWeight: 600, fontSize: "0.65rem" }}>Nombre Completo</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.813rem" }}>
                       {coordinatorName || "No disponible"}
                     </Typography>
                   </Box>
                 </Box>
               </Paper>
 
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 1.2,
-                  bgcolor: "rgba(248, 249, 250, 0.9)",
-                  borderRadius: 5,
-                  border: "1px solid #e9ecef",
-                }}
-              >
+              <Paper elevation={0} sx={{ p: 1.2, bgcolor: "rgba(248,249,250,0.9)", borderRadius: 5, border: "1px solid #e9ecef" }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
                   <EmailIcon sx={{ color: VERDE_INSTITUCIONAL, fontSize: 20 }} />
                   <Box sx={{ flex: 1 }}>
-                    <Typography
-                      variant="caption"
-                      sx={{ color: "#6c757d", fontWeight: 600, fontSize: "0.65rem" }}
-                    >
-                      Email
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontWeight: 600,
-                        fontSize: "0.813rem",
-                        wordBreak: "break-word",
-                      }}
-                    >
+                    <Typography variant="caption" sx={{ color: "#6c757d", fontWeight: 600, fontSize: "0.65rem" }}>Email</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.813rem", wordBreak: "break-word" }}>
                       {coordinatorEmail || "No disponible"}
                     </Typography>
                   </Box>
                 </Box>
               </Paper>
 
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 1.2,
-                  bgcolor: "rgba(248, 249, 250, 0.9)",
-                  borderRadius: 5,
-                  border: "1px solid #e9ecef",
-                }}
-              >
+              <Paper elevation={0} sx={{ p: 1.2, bgcolor: "rgba(248,249,250,0.9)", borderRadius: 5, border: "1px solid #e9ecef" }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
                   <BadgeIcon sx={{ color: VERDE_INSTITUCIONAL, fontSize: 20 }} />
                   <Box sx={{ flex: 1 }}>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: "#6c757d",
-                        fontWeight: 600,
-                        fontSize: "0.65rem",
-                        mb: 0.3,
-                        display: "block",
-                      }}
-                    >
-                      Rol
-                    </Typography>
-                    <Box
-                      sx={{
-                        display: "inline-block",
-                        bgcolor: VERDE_INSTITUCIONAL,
-                        color: "white",
-                        px: 1.5,
-                        py: 0.4,
-                        borderRadius: "12px",
-                        fontSize: "0.7rem",
-                        fontWeight: 700,
-                      }}
-                    >
+                    <Typography variant="caption" sx={{ color: "#6c757d", fontWeight: 600, fontSize: "0.65rem", mb: 0.3, display: "block" }}>Rol</Typography>
+                    <Box sx={{ display: "inline-block", bgcolor: VERDE_INSTITUCIONAL, color: "white", px: 1.5, py: 0.4, borderRadius: "12px", fontSize: "0.7rem", fontWeight: 700 }}>
                       {coordinatorRole}
                     </Box>
                   </Box>

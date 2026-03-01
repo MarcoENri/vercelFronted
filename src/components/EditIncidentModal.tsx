@@ -6,6 +6,17 @@ import { updateIncident } from "../services/incidentManageService";
 // ✅ IMPORTES PARA REACTIVIDAD
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+// ── AÑADIDO: locale español con una sola inicial por día ─────────────────
+import esLocale from "antd/es/date-picker/locale/es_ES";
+
+const locale = {
+  ...esLocale,
+  lang: {
+    ...esLocale.lang,
+    shortWeekDays: ["D", "L", "M", "M", "J", "V", "S"],
+  },
+};
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -40,7 +51,6 @@ export default function EditIncidentModal({
   const queryClient = useQueryClient();
 
   // ✅ MUTACIÓN REACTIVA
-  // Mantenemos la lógica de llamada al servicio pero envuelta en useMutation
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
       if (!incident) return;
@@ -53,12 +63,9 @@ export default function EditIncidentModal({
     },
     onSuccess: () => {
       message.success("Incidencia actualizada ✅");
-      
-      // Invalidamos las queries relacionadas para que la UI se refresque sola
       queryClient.invalidateQueries({ queryKey: ["studentDetail", String(studentId)] });
       queryClient.invalidateQueries({ queryKey: ["students"] });
-      
-      onSaved(); // Ejecutamos el callback original
+      onSaved();
       onClose();
       form.resetFields();
     },
@@ -76,7 +83,7 @@ export default function EditIncidentModal({
         form.resetFields();
       }}
       onOk={() => form.submit()}
-      confirmLoading={mutation.isPending} // El botón de OK mostrará carga automáticamente
+      confirmLoading={mutation.isPending}
       destroyOnClose
       okText="Guardar"
       cancelText="Cancelar"
@@ -94,14 +101,15 @@ export default function EditIncidentModal({
       <Form
         layout="vertical"
         form={form}
-        onFinish={(v) => mutation.mutate(v)} // Usamos la mutación reactiva
+        onFinish={(v) => mutation.mutate(v)}
       >
         <Form.Item name="stage" label="Etapa" rules={[{ required: true }]}>
           <Input />
         </Form.Item>
 
         <Form.Item name="date" label="Fecha" rules={[{ required: true }]}>
-          <DatePicker style={{ width: "100%" }} />
+          {/* AÑADIDO: locale para mostrar L M M J V S D en español */}
+          <DatePicker style={{ width: "100%" }} locale={locale} />
         </Form.Item>
 
         <Form.Item name="reason" label="Motivo" rules={[{ required: true }]}>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Container,
@@ -20,6 +20,7 @@ import {
   InputAdornment,
   Fade,
   Zoom,
+  IconButton,
 } from "@mui/material";
 
 import {
@@ -27,6 +28,7 @@ import {
   Download as DownloadIcon,
   Visibility as VisibilityIcon,
   Assessment as AssessmentIcon,
+  Menu as MenuIcon,
 } from "@mui/icons-material";
 
 import { useNavigate, useLocation } from "react-router-dom";
@@ -58,7 +60,6 @@ export default function FinalDefenseJuryPage() {
   const isCoordinator = location.pathname.includes("coordinator");
 
   const [loading, setLoading] = useState(false);
-  // ─── Loading por estudiante — solo ese botón muestra "Guardando..." ───────
   const [savingStudentId, setSavingStudentId] = useState<number | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [bookings, setBookings] = useState<FinalDefenseBookingDto[]>([]);
@@ -67,7 +68,9 @@ export default function FinalDefenseJuryPage() {
   const [evaluations, setEvaluations] = useState<FinalDefenseEvaluationDto[]>([]);
   const [studentEvals, setStudentEvals] = useState<Record<number, StudentEvalState>>({});
 
-  // ─── Snackbar ─────────────────────────────────────────────────────────────
+  // ── AÑADIDO: ref para abrir sidebar móvil desde el header (ambos roles) ───
+  const toggleMobileRef = useRef<() => void>(() => {});
+
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: "success" | "error" | "warning" }>({
     open: false, msg: "", severity: "success",
   });
@@ -75,7 +78,6 @@ export default function FinalDefenseJuryPage() {
     setSnack({ open: true, msg, severity });
   const closeSnack = () => setSnack((s) => ({ ...s, open: false }));
 
-  // ─── Dialog cerrar sesión ──────────────────────────────────────────────────
   const [logoutOpen, setLogoutOpen] = useState(false);
 
   const juryInfo = useMemo(() => {
@@ -150,7 +152,6 @@ export default function FinalDefenseJuryPage() {
     }
   };
 
-  // ─── Actualiza un campo de un estudiante sin re-montar el input ───────────
   const updateEval = (studentId: number, field: keyof StudentEvalState, value: string) => {
     setStudentEvals((prev) => ({
       ...prev,
@@ -213,7 +214,6 @@ export default function FinalDefenseJuryPage() {
     }
   };
 
-  // ─── Sx del TextField de nota — depende del valor actual ─────────────────
   const scoreFieldSx = (val: string) => {
     const color = scoreColor(val);
     return {
@@ -239,7 +239,7 @@ export default function FinalDefenseJuryPage() {
   return (
     <Box sx={{ display: "flex", minHeight: "100vh" }}>
 
-      {/* SIDEBAR según rol */}
+      {/* SIDEBAR según rol — AÑADIDO: onToggleMobileRef en ambos casos */}
       {isCoordinator ? (
         <CoordinatorSidebar
           coordinatorName={juryInfo.name}
@@ -250,6 +250,7 @@ export default function FinalDefenseJuryPage() {
           photoPreview={photoPreview}
           onLogout={handleLogout}
           onPhotoChange={handlePhotoChange}
+          onToggleMobileRef={(fn) => { toggleMobileRef.current = fn; }}
         />
       ) : (
         <TutorSidebar
@@ -263,6 +264,7 @@ export default function FinalDefenseJuryPage() {
           tutorRole={juryInfo.role}
           photoPreview={photoPreview}
           onPhotoChange={handlePhotoChange}
+          onToggleMobileRef={(fn) => { toggleMobileRef.current = fn; }} // ── AÑADIDO ──
         />
       )}
 
@@ -274,11 +276,21 @@ export default function FinalDefenseJuryPage() {
           position: "sticky", top: 0, zIndex: 1100, flexShrink: 0,
           bgcolor: VERDE_INSTITUCIONAL, color: "white",
           py: 2, px: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          display: "flex", alignItems: "center", gap: 1.5,
         }}>
-          <Typography variant="h6" sx={{ fontWeight: 900 }}>Defensa Final</Typography>
-          <Typography variant="caption" sx={{ opacity: 0.9 }}>
-            Panel de Jurado {periodId ? `— Periodo: ${periodId}` : ""}
-          </Typography>
+          {/* AÑADIDO: botón hamburguesa en el header para ambos roles */}
+          <IconButton
+            onClick={() => toggleMobileRef.current?.()}
+            sx={{ display: { xs: "flex", md: "none" }, color: "white", p: 0.5, flexShrink: 0 }}
+          >
+            <MenuIcon />
+          </IconButton>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 900 }}>Defensa Final</Typography>
+            <Typography variant="caption" sx={{ opacity: 0.9 }}>
+              Panel de Jurado {periodId ? `— Periodo: ${periodId}` : ""}
+            </Typography>
+          </Box>
         </Box>
 
         {/* CONTENIDO */}
@@ -376,7 +388,6 @@ export default function FinalDefenseJuryPage() {
                 const rubricNum = getNumeric(ev.rubricScore);
                 const extraNum = getNumeric(ev.extraScore);
                 const total = rubricNum + extraNum;
-                // ✅ Regla institucional: rúbrica mínimo 35/50 para aprobar
                 const verdict = rubricNum >= 35 && total >= 70 ? "APROBADO" : "REPROBADO";
                 const verdictColor = verdict === "APROBADO" ? "#2e7d32" : "#d32f2f";
                 const evalsStudent = evaluations.filter((e) => e.studentId === s.id);
@@ -384,7 +395,6 @@ export default function FinalDefenseJuryPage() {
                 return (
                   <Paper key={s.id} sx={{ p: 3, borderRadius: "20px", boxShadow: "0 4px 20px rgba(0,0,0,0.06)", border: "1px solid #eee" }}>
 
-                    {/* Encabezado estudiante */}
                     <Box sx={{ mb: 3, pb: 2, borderBottom: `3px solid ${VERDE_INSTITUCIONAL}22` }}>
                       <Typography variant="h6" sx={{ fontWeight: 900, color: VERDE_INSTITUCIONAL }}>
                         {s.fullName}
@@ -394,10 +404,8 @@ export default function FinalDefenseJuryPage() {
                       </Typography>
                     </Box>
 
-                    {/* Inputs nota */}
                     <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, mb: 1 }}>
 
-                      {/* Rúbrica */}
                       <Box>
                         <TextField
                           label="Rúbrica"
@@ -421,7 +429,6 @@ export default function FinalDefenseJuryPage() {
                           }}
                           sx={scoreFieldSx(ev.rubricScore)}
                         />
-                        {/* Barra progreso */}
                         <Box sx={{ mt: 0.8, height: 4, borderRadius: 99, bgcolor: "#f0f0f0", overflow: "hidden" }}>
                           <Box sx={{
                             height: "100%", borderRadius: 99,
@@ -430,7 +437,6 @@ export default function FinalDefenseJuryPage() {
                             transition: "width 0.35s cubic-bezier(0.4,0,0.2,1), background-color 0.3s ease",
                           }} />
                         </Box>
-                        {/* Aviso mínimo institucional */}
                         {rubricNum > 0 && rubricNum < 35 && (
                           <Typography variant="caption" sx={{ color: "#d32f2f", fontWeight: 800, mt: 0.5, display: "block", fontSize: "0.7rem" }}>
                             ⚠ Mínimo requerido: 35/50
@@ -438,7 +444,6 @@ export default function FinalDefenseJuryPage() {
                         )}
                       </Box>
 
-                      {/* Extra */}
                       <Box>
                         <TextField
                           label="Extra"
@@ -462,7 +467,6 @@ export default function FinalDefenseJuryPage() {
                           }}
                           sx={scoreFieldSx(ev.extraScore)}
                         />
-                        {/* Barra progreso */}
                         <Box sx={{ mt: 0.8, height: 4, borderRadius: 99, bgcolor: "#f0f0f0", overflow: "hidden" }}>
                           <Box sx={{
                             height: "100%", borderRadius: 99,
@@ -474,7 +478,6 @@ export default function FinalDefenseJuryPage() {
                       </Box>
                     </Box>
 
-                    {/* Total animado */}
                     <Box sx={{
                       mt: 2, mb: 2.5, p: 2,
                       bgcolor: verdict === "APROBADO" ? "#f0fff4" : "#fff5f5",
@@ -483,21 +486,16 @@ export default function FinalDefenseJuryPage() {
                       transition: "background-color 0.4s ease",
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 1,
                     }}>
-                      <Typography component="span" sx={{ fontWeight: 900, fontSize: "1.2rem", color: "#333" }}>
-                        Total:
-                      </Typography>
+                      <Typography component="span" sx={{ fontWeight: 900, fontSize: "1.2rem", color: "#333" }}>Total:</Typography>
                       <Typography component="span" sx={{ color: verdictColor, fontSize: "1.6rem", fontWeight: 900, transition: "color 0.3s ease", lineHeight: 1 }}>
                         {rubricNum + extraNum}
                       </Typography>
-                      <Typography component="span" sx={{ color: "#bbb", fontWeight: 700, fontSize: "1rem" }}>
-                        /100
-                      </Typography>
+                      <Typography component="span" sx={{ color: "#bbb", fontWeight: 700, fontSize: "1rem" }}>/100</Typography>
                       <Chip label={verdict} size="small"
                         sx={{ bgcolor: verdictColor, color: "#fff", fontWeight: 900, fontSize: "0.75rem", transition: "background-color 0.3s ease" }}
                       />
                     </Box>
 
-                    {/* Observaciones */}
                     <TextField
                       label="Observaciones"
                       fullWidth multiline minRows={2}
@@ -518,7 +516,6 @@ export default function FinalDefenseJuryPage() {
                       }}
                     />
 
-                    {/* Otros jurados */}
                     <Box sx={{ mb: 2.5, p: 2, bgcolor: "#fafafa", borderRadius: "12px", border: "1px solid #eee" }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 900, mb: 1, color: "#777", fontSize: "0.72rem", letterSpacing: "0.5px" }}>
                         CALIFICACIONES DE OTROS JURADOS
@@ -538,7 +535,6 @@ export default function FinalDefenseJuryPage() {
                       )}
                     </Box>
 
-                    {/* Guardar */}
                     <Button fullWidth variant="contained"
                       disabled={savingStudentId === s.id}
                       onClick={() => saveStudentEvaluation(s.id)}
@@ -594,7 +590,7 @@ export default function FinalDefenseJuryPage() {
         </DialogActions>
       </Dialog>
 
-      {/* ── SNACKBAR centrado en pantalla ────────────────────────────────────── */}
+      {/* ── SNACKBAR ────────────────────────────────────────────────────────── */}
       <Snackbar
         open={snack.open}
         autoHideDuration={3500}

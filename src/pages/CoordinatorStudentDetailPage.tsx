@@ -45,6 +45,7 @@ import {
   Delete as DeleteIcon,
   PersonAdd as PersonAddIcon,
   Logout as LogoutIcon,
+  Menu as MenuIcon,
 } from "@mui/icons-material";
 import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -109,6 +110,9 @@ export default function CoordinatorStudentDetailPage() {
   const queryClient = useQueryClient();
 
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+  // ── AÑADIDO: ref para abrir sidebar móvil desde el header ─────────────────
+  const toggleMobileRef = useRef<() => void>(() => {});
 
   const periodId = useMemo(() => {
     const q = sp.get("periodId");
@@ -325,6 +329,7 @@ export default function CoordinatorStudentDetailPage() {
           photoPreview={photoPreview}
           onLogout={handleLogout}
           onPhotoChange={setPhotoPreview}
+          onToggleMobileRef={(fn) => { toggleMobileRef.current = fn; }}
         />
 
         {/* ── CONTENIDO PRINCIPAL ── */}
@@ -355,6 +360,13 @@ export default function CoordinatorStudentDetailPage() {
               gap: 1.5,
             }}
           >
+            {/* AÑADIDO: botón hamburguesa solo en móvil */}
+            <IconButton
+              onClick={() => toggleMobileRef.current?.()}
+              sx={{ display: { xs: "flex", md: "none" }, color: "white", p: 0.5, flexShrink: 0 }}
+            >
+              <MenuIcon />
+            </IconButton>
             <Box>
               <Typography
                 variant={isMobile ? "body1" : "h6"}

@@ -49,6 +49,8 @@ interface TutorSidebarProps {
   tutorRole?: string;
   photoPreview?: string | null;
   onPhotoChange?: (photo: string) => void;
+  // ── AÑADIDO: expone el toggle al padre ──────────────────────────────────
+  onToggleMobileRef?: (fn: () => void) => void;
 }
 
 export default function TutorSidebar({
@@ -62,6 +64,7 @@ export default function TutorSidebar({
   tutorRole = "Tutor",
   photoPreview = null,
   onPhotoChange,
+  onToggleMobileRef, // ── AÑADIDO ─────────────────────────────────────────
 }: TutorSidebarProps) {
   const nav = useNavigate();
   const location = useLocation();
@@ -72,6 +75,11 @@ export default function TutorSidebar({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── AÑADIDO: expone la función toggle al componente padre ────────────────
+  if (onToggleMobileRef) {
+    onToggleMobileRef(() => setMobileOpen((prev) => !prev));
+  }
 
   const menuItems = [
     {
@@ -139,7 +147,7 @@ export default function TutorSidebar({
   const drawerContent = (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column", bgcolor: verde, color: "white" }}>
 
-      {/* HEADER */}
+      {/* HEADER — igual que CoordinatorSidebar */}
       <Box sx={{
         p: 2,
         display: "flex",
@@ -149,16 +157,15 @@ export default function TutorSidebar({
         borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
       }}>
         {(isMobile || open) && (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flex: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flex: 1, minWidth: 0 }}>
             <Avatar
               src={photoPreview || undefined}
               onClick={() => setProfileDrawerOpen(true)}
               sx={{
-                width: 48, height: 48,
+                width: 48, height: 48, flexShrink: 0,
                 bgcolor: "white", color: verde, fontWeight: 900,
                 border: "2px solid rgba(255, 255, 255, 0.3)",
-                cursor: "pointer",
-                transition: "all 0.3s ease",
+                cursor: "pointer", transition: "all 0.3s ease",
                 "&:hover": { transform: "scale(1.05)", border: "2px solid white" },
               }}
             >
@@ -178,27 +185,23 @@ export default function TutorSidebar({
           </Box>
         )}
 
-        {/* Avatar pequeño cuando está colapsado */}
-        {!isMobile && !open && (
-          <Box sx={{ mx: "auto" }}>
-            <Avatar
-              src={photoPreview || undefined}
-              onClick={() => setProfileDrawerOpen(true)}
-              sx={{
-                width: 40, height: 40,
-                bgcolor: "white", color: verde, fontWeight: 900,
-                cursor: "pointer", border: "2px solid rgba(255,255,255,0.3)",
-                "&:hover": { transform: "scale(1.05)" },
-              }}
-            >
-              {tutorInitials}
-            </Avatar>
-          </Box>
+        {/* Desktop: flecha/hamburguesa colapsar/expandir — sin avatar cuando colapsado */}
+        {!isMobile && (
+          <IconButton
+            onClick={handleToggle}
+            sx={{ color: "white", ml: open ? 0 : "auto" }}
+          >
+            {open ? <ChevronLeftIcon /> : <MenuIcon />}
+          </IconButton>
         )}
 
-        {!isMobile && (
-          <IconButton onClick={handleToggle} sx={{ color: "white" }}>
-            {open ? <ChevronLeftIcon /> : <MenuIcon />}
+        {/* Móvil: botón cerrar drawer desde dentro */}
+        {isMobile && (
+          <IconButton
+            onClick={() => setMobileOpen(false)}
+            sx={{ color: "white", ml: 0.5, flexShrink: 0 }}
+          >
+            <CloseIcon />
           </IconButton>
         )}
       </Box>
@@ -288,19 +291,8 @@ export default function TutorSidebar({
 
   return (
     <>
-      {/* HAMBURGUESA — solo móvil */}
-      {isMobile && (
-        <IconButton
-          onClick={handleToggle}
-          sx={{
-            position: "fixed", top: 16, left: 16, zIndex: 1300,
-            bgcolor: verde, color: "white",
-            "&:hover": { bgcolor: verde, opacity: 0.9 },
-          }}
-        >
-          <MenuIcon />
-        </IconButton>
-      )}
+      {/* ── ELIMINADO: el botón hamburguesa flotante fijo que dañaba el diseño ──
+          Ahora el botón vive en el header verde de cada página (ver páginas). */}
 
       {/* DRAWER MÓVIL */}
       {isMobile && (

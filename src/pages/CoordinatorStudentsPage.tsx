@@ -25,9 +25,10 @@ import {
   Alert,
   Fade,
   Collapse,
+  IconButton,
 } from "@mui/material";
 
-import { Logout as LogoutIcon, SyncRounded } from "@mui/icons-material";
+import { Logout as LogoutIcon, SyncRounded, Menu as MenuIcon } from "@mui/icons-material";
 import { logout } from "../services/authService";
 import type { CoordinatorStudentRow } from "../services/coordinatorService";
 import { listCoordinatorStudents } from "../services/coordinatorService";
@@ -71,6 +72,9 @@ export default function CoordinatorStudentsPage() {
   const [toast, setToast] = useState<{ open: boolean; msg: string }>({ open: false, msg: "" });
   const [showBanner, setShowBanner] = useState(false);
   const [bannerPeriodName, setBannerPeriodName] = useState("");
+
+  // ── AÑADIDO: ref para abrir sidebar móvil desde el header ─────────────────
+  const toggleMobileRef = useRef<() => void>(() => {});
 
   // ─── Referencia al último periodId conocido para detectar cambios ──────────
   const prevPeriodIdRef = useRef<number | null>(null);
@@ -170,6 +174,7 @@ export default function CoordinatorStudentsPage() {
         photoPreview={photoPreview}
         onLogout={() => setLogoutOpen(true)}
         onPhotoChange={setPhotoPreview}
+        onToggleMobileRef={(fn) => { toggleMobileRef.current = fn; }}
       />
 
       <Box component="main" sx={{ flexGrow: 1, background: "#f0f2f5", display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
@@ -177,15 +182,24 @@ export default function CoordinatorStudentsPage() {
         {/* HEADER */}
         <Box sx={{ position: "sticky", top: 0, zIndex: 1100, flexShrink: 0, bgcolor: VERDE, color: "white", py: 2, px: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}>
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1 }}>Mis Estudiantes</Typography>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mt: 0.3 }}>
-                <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                  {activePeriod?.name ? `📅 ${activePeriod.name}` : "Seleccionando período..."}
-                </Typography>
-                {loading && rows.length > 0 && (
-                  <CircularProgress size={10} sx={{ color: "rgba(255,255,255,0.7)" }} />
-                )}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              {/* AÑADIDO: botón hamburguesa solo en móvil */}
+              <IconButton
+                onClick={() => toggleMobileRef.current?.()}
+                sx={{ display: { xs: "flex", md: "none" }, color: "white", p: 0.5 }}
+              >
+                <MenuIcon />
+              </IconButton>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1 }}>Mis Estudiantes</Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mt: 0.3 }}>
+                  <Typography variant="caption" sx={{ opacity: 0.9 }}>
+                    {activePeriod?.name ? `📅 ${activePeriod.name}` : "Seleccionando período..."}
+                  </Typography>
+                  {loading && rows.length > 0 && (
+                    <CircularProgress size={10} sx={{ color: "rgba(255,255,255,0.7)" }} />
+                  )}
+                </Box>
               </Box>
             </Box>
 

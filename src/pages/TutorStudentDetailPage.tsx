@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import 'dayjs/locale/es';
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Box,
@@ -36,6 +37,7 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Logout as LogoutIcon,
+  Menu as MenuIcon, // ── AÑADIDO ──────────────────────────────────────────────
 } from "@mui/icons-material";
 import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -78,6 +80,9 @@ export default function TutorStudentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [sp] = useSearchParams();
   const queryClient = useQueryClient();
+
+  // ── AÑADIDO: ref para el toggle del sidebar móvil ────────────────────────
+  const toggleMobileRef = useRef<() => void>(() => {});
 
   // Lógica de periodo
   const periodId = useMemo(() => {
@@ -239,7 +244,7 @@ export default function TutorStudentDetailPage() {
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Box sx={{ minHeight: "100vh", background: "#f0f2f5", display: "flex", flexDirection: "row" }}>
         
-        {/* SIDEBAR */}
+        {/* SIDEBAR — AÑADIDO: expone el toggle al ref */}
         <TutorSidebar 
           onLogout={handleLogout}
           verde={VERDE_INSTITUCIONAL}
@@ -249,6 +254,7 @@ export default function TutorStudentDetailPage() {
           tutorEmail={tutorInfo.email}
           tutorUsername={tutorInfo.username}
           tutorRole={tutorInfo.role}
+          onToggleMobileRef={(fn) => { toggleMobileRef.current = fn; }}
         />
 
         <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column", minWidth: 0, height: "100vh", overflow: "hidden" }}>
@@ -264,7 +270,18 @@ export default function TutorStudentDetailPage() {
             px: 3,
             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
             flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
           }}>
+            {/* ── AÑADIDO: botón hamburguesa integrado en el header, solo móvil ── */}
+            <IconButton
+              onClick={() => toggleMobileRef.current?.()}
+              sx={{ display: { xs: "flex", md: "none" }, color: "white", p: 0.5, flexShrink: 0 }}
+            >
+              <MenuIcon />
+            </IconButton>
+
             <Box sx={{ display: "flex", flexDirection: "column" }}>
               <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.2 }}>
                 Panel de Tutoría

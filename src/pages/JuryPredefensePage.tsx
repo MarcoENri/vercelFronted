@@ -1,5 +1,5 @@
 import 'dayjs/locale/es';
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
@@ -24,6 +24,7 @@ import {
   Zoom,
   useTheme,
   useMediaQuery,
+  IconButton,
 } from "@mui/material";
 import {
   School as SchoolIcon,
@@ -32,6 +33,7 @@ import {
   Send as SendIcon,
   Logout as LogoutIcon,
   AccessTime as AccessTimeIcon,
+  Menu as MenuIcon,
 } from "@mui/icons-material";
 
 import { DateTimePicker } from "@mui/x-date-pickers/DateTimePicker";
@@ -58,10 +60,8 @@ import TutorSidebar from "../components/TutorSidebar/TutorSidebar";
 
 const VERDE_INSTITUCIONAL = "#008B8B";
 
-// ─── Locale text español para MUI pickers ─────────────────────────────────
 const esLocaleText = esES.components.MuiLocalizationProvider.defaultProps.localeText;
 
-// ─── Estilos del popper del DateTimePicker (desktop) ──────────────────────
 const cleanPopperStyle = {
   "& .MuiPaper-root": {
     bgcolor: "#fff", color: "#333", borderRadius: "20px",
@@ -76,7 +76,6 @@ const cleanPopperStyle = {
     "& .MuiClockPointer-thumb": { bgcolor: VERDE_INSTITUCIONAL, borderColor: VERDE_INSTITUCIONAL },
     "& .MuiClockNumber-root": { fontWeight: 800 },
     "& .MuiDialogActions-root .MuiButton-root": { color: VERDE_INSTITUCIONAL, fontWeight: 900 },
-    // Iniciales fijas — independiente del idioma del navegador
     "& .MuiDayCalendar-weekDayLabel": { fontSize: 0 },
     "& .MuiDayCalendar-weekDayLabel:nth-of-type(1)::after": { content: '"L"', fontSize: "0.75rem", fontWeight: 700 },
     "& .MuiDayCalendar-weekDayLabel:nth-of-type(2)::after": { content: '"M"', fontSize: "0.75rem", fontWeight: 700 },
@@ -88,7 +87,6 @@ const cleanPopperStyle = {
   }
 };
 
-// ─── Estilos del dialog móvil — SIN viewRenderers (selector digital) ──────
 const mobileDialogStyle = {
   sx: {
     zIndex: 1400,
@@ -105,7 +103,6 @@ const mobileDialogStyle = {
       fontWeight: 900,
     },
     "& .MuiDialogActions-root .MuiButton-root": { color: VERDE_INSTITUCIONAL, fontWeight: 900 },
-    // Iniciales fijas en el calendar del móvil
     "& .MuiDayCalendar-weekDayLabel": { fontSize: 0 },
     "& .MuiDayCalendar-weekDayLabel:nth-of-type(1)::after": { content: '"L"', fontSize: "0.75rem", fontWeight: 700 },
     "& .MuiDayCalendar-weekDayLabel:nth-of-type(2)::after": { content: '"M"', fontSize: "0.75rem", fontWeight: 700 },
@@ -146,12 +143,8 @@ export default function JuryPredefensePage() {
   const [obsTextMap, setObsTextMap] = useState<{ [bookingId: number]: string }>({});
   const [loading, setLoading] = useState(false);
 
-  // ─── Reloj digital en tiempo real ─────────────────────────────────────────
-  const [now, setNow] = useState(dayjs());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(dayjs()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  // ── AÑADIDO: ref para abrir sidebar móvil desde el header (ambos roles) ───
+  const toggleMobileRef = useRef<() => void>(() => {});
 
   const [slotStartsAt, setSlotStartsAt] = useState<Dayjs | null>(
     dayjs().add(1, "hour").startOf("hour")
@@ -160,7 +153,6 @@ export default function JuryPredefensePage() {
     dayjs().add(1, "hour").add(30, "minute").startOf("hour")
   );
 
-  // ─── Snackbar ──────────────────────────────────────────────────────────────
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: "success" | "error" | "warning" }>({
     open: false, msg: "", severity: "success",
   });
@@ -168,7 +160,6 @@ export default function JuryPredefensePage() {
     setSnack({ open: true, msg, severity });
   const closeSnack = () => setSnack((s) => ({ ...s, open: false }));
 
-  // ─── Dialog cerrar sesión ──────────────────────────────────────────────────
   const [logoutOpen, setLogoutOpen] = useState(false);
 
   const isCoordinator = useMemo(
@@ -312,9 +303,6 @@ export default function JuryPredefensePage() {
     "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: VERDE_INSTITUCIONAL, borderWidth: "2px" },
   };
 
-  // ─── Helper: picker fecha/hora adaptado a dispositivo ─────────────────────
-  // Móvil  → MobileDateTimePicker SIN viewRenderers (selector digital, idioma-agnóstico)
-  // Desktop → DateTimePicker con reloj analógico (renderTimeViewClock)
   const renderDTP = (
     label: string,
     value: Dayjs | null,
@@ -351,11 +339,10 @@ export default function JuryPredefensePage() {
   };
 
   return (
-    // ✅ LocalizationProvider con adapterLocale="es" y localeText español
     <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es" localeText={esLocaleText}>
       <Box sx={{ display: "flex", minHeight: "100vh" }}>
 
-        {/* SIDEBAR */}
+        {/* SIDEBAR — AÑADIDO: onToggleMobileRef en ambos roles */}
         {isCoordinator ? (
           <CoordinatorSidebar
             coordinatorName={juryInfo.name}
@@ -366,6 +353,7 @@ export default function JuryPredefensePage() {
             photoPreview={photoPreview}
             onLogout={handleLogout}
             onPhotoChange={handlePhotoChange}
+            onToggleMobileRef={(fn) => { toggleMobileRef.current = fn; }}
           />
         ) : (
           <TutorSidebar
@@ -379,6 +367,7 @@ export default function JuryPredefensePage() {
             tutorRole={juryInfo.role}
             photoPreview={photoPreview}
             onPhotoChange={handlePhotoChange}
+            onToggleMobileRef={(fn) => { toggleMobileRef.current = fn; }} // ── AÑADIDO ──
           />
         )}
 
@@ -391,38 +380,25 @@ export default function JuryPredefensePage() {
             py: 1.5, px: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
             display: "flex", justifyContent: "space-between", alignItems: "center",
           }}>
-            <Box>
-              <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.2 }}>
-                {isCoordinator ? "Gestión de Predefensas (Coordinador)" : "Gestión de Predefensas (Tutor)"}
-              </Typography>
-              <Typography variant="caption" sx={{ opacity: 0.85 }}>
-                Panel de Jurado
-              </Typography>
-            </Box>
-
-            {/* RELOJ DIGITAL */}
-            <Box sx={{
-              display: "flex", alignItems: "center", gap: 1,
-              bgcolor: "rgba(255,255,255,0.12)",
-              borderRadius: "50px", px: 2, py: 0.8,
-              border: "1px solid rgba(255,255,255,0.2)",
-            }}>
-              <AccessTimeIcon sx={{ fontSize: 16, opacity: 0.9 }} />
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              {/* AÑADIDO: botón hamburguesa para ambos roles en móvil */}
+              <IconButton
+                onClick={() => toggleMobileRef.current?.()}
+                sx={{ display: { xs: "flex", md: "none" }, color: "white", p: 0.5 }}
+              >
+                <MenuIcon />
+              </IconButton>
               <Box>
-                <Typography sx={{
-                  fontWeight: 900, fontSize: "1.15rem", lineHeight: 1,
-                  fontVariantNumeric: "tabular-nums",
-                  letterSpacing: "0.05em",
-                  fontFamily: "'Courier New', monospace",
-                }}>
-                  {now.format("HH:mm:ss")}
+                <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.2 }}>
+                  {isCoordinator ? "Gestión de Predefensas (Coordinador)" : "Gestión de Predefensas (Tutor)"}
                 </Typography>
-                <Typography sx={{ fontSize: "0.62rem", opacity: 0.8, fontWeight: 700, textAlign: "center", letterSpacing: "0.03em" }}>
-                  {now.format("DD MMM YYYY").toUpperCase()}
+                <Typography variant="caption" sx={{ opacity: 0.85 }}>
+                  Panel de Jurado
                 </Typography>
               </Box>
             </Box>
-          </Box>
+
+            </Box>
 
           {/* CONTENIDO SCROLLEABLE */}
           <Box sx={{ flex: 1, overflowY: "auto", py: 3 }}>
@@ -480,7 +456,6 @@ export default function JuryPredefensePage() {
                           </Select>
                           <Divider sx={{ my: 3 }} />
 
-                          {/* ✅ Pickers con helper — móvil: digital, desktop: reloj analógico */}
                           <Box sx={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 2, mb: 2 }}>
                             {renderDTP("Inicio", slotStartsAt, setSlotStartsAt, true)}
                             {renderDTP("Fin", slotEndsAt, setSlotEndsAt, true)}
