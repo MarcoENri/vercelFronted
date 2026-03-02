@@ -30,6 +30,7 @@ interface AdminSidebarProps {
   careerCards: any[];
   selectedPeriodId: number | "ALL";
   onOpenAddCareer?: () => void;
+  adminProfile?: { fullName?: string; firstName?: string; lastName?: string; email?: string; role?: string; username?: string } | null;
   // Datos
   onOpenProfile?: () => void;
   onOpenPeriodModal?: () => void;
@@ -42,6 +43,7 @@ export const drawerWidth = 220;
 export default function AdminSidebar({
   open, onClose, onLogout, verde, careerCards, selectedPeriodId,
   onOpenAddCareer,
+  adminProfile,
   onOpenProfile,
   onOpenPeriodModal,
   onUploadFile,
@@ -77,12 +79,44 @@ export default function AdminSidebar({
   const content = (
     <>
       {/* HEADER SIDEBAR */}
-      <Box sx={{ display: "flex", alignItems: "center", p: 2, bgcolor: "rgba(0,0,0,0.15)" }}>
-        <Typography sx={{ flexGrow: 1, fontWeight: 800, color: "#fff", fontSize: "1rem" }}>
-          Panel Académico
-        </Typography>
+      <Box
+        onClick={() => onOpenProfile?.()}
+        sx={{
+          display: "flex", alignItems: "center", gap: 1.5, p: 1,
+          bgcolor: "rgba(0,0,0,0.15)",
+          cursor: onOpenProfile ? "pointer" : "default",
+          "&:hover": onOpenProfile ? { bgcolor: "rgba(0,0,0,0.25)" } : {},
+          transition: "background 0.2s",
+        }}
+      >
+        {/* AVATAR con inicial */}
+        <Box sx={{
+          width: 38, height: 38, borderRadius: "50%",
+          bgcolor: "rgba(255,255,255,0.25)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+        }}>
+          <Typography sx={{ fontWeight: 900, color: "#fff", fontSize: "1rem" }}>
+            {adminProfile
+              ? (adminProfile.fullName || adminProfile.firstName || "A").charAt(0).toUpperCase()
+              : "A"}
+          </Typography>
+        </Box>
+
+        {/* Nombre y rol */}
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 800, color: "#fff", fontSize: "0.88rem", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {adminProfile
+              ? (adminProfile.fullName || `${adminProfile.firstName ?? ""} ${adminProfile.lastName ?? ""}`.trim())
+              : "Panel Académico"}
+          </Typography>
+          <Typography sx={{ fontWeight: 500, color: "rgba(255,255,255,0.75)", fontSize: "0.68rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {adminProfile?.role ?? adminProfile?.email ?? "Administrador"}
+          </Typography>
+        </Box>
+
         {isMobile && (
-          <IconButton onClick={onClose} sx={{ color: "#fff" }}>
+          <IconButton onClick={(e) => { e.stopPropagation(); onClose(); }} sx={{ color: "#fff" }}>
             <ChevronLeftIcon />
           </IconButton>
         )}
@@ -149,47 +183,44 @@ export default function AdminSidebar({
         </Collapse>
 
         {/* ===== DATOS ===== */}
-        <ListItem disablePadding>
-          <ListItemButton onClick={() => setOpenDatos(!openDatos)} sx={btn}>
-            <ListItemIcon sx={{ color: "#fff", minWidth: 38 }}><DatosIcon /></ListItemIcon>
-            <ListItemText primary="Datos" primaryTypographyProps={{ fontWeight: 700, color: "#fff", fontSize: "0.88rem" }} />
-            {openDatos ? <ExpandLess sx={{ color: "#fff" }} /> : <ExpandMore sx={{ color: "#fff" }} />}
-          </ListItemButton>
-        </ListItem>
-
-        <Collapse in={openDatos} unmountOnExit>
-          <List disablePadding sx={{ bgcolor: "rgba(0,0,0,0.12)", borderRadius: "10px", mx: 1, mb: 1 }}>
-
-            {onOpenProfile && (
-              <ListItemButton onClick={() => action(onOpenProfile)} sx={subBtn}>
-                <ListItemIcon sx={{ minWidth: 28 }}><ProfileIcon sx={{ color: "#fff", fontSize: 18 }} /></ListItemIcon>
-                <ListItemText primary="Mi Perfil" primaryTypographyProps={{ fontSize: "0.78rem", fontWeight: 600, color: "#fff" }} />
+        {(onOpenPeriodModal || onUploadFile || onOpenStats) && (
+          <>
+            <ListItem disablePadding>
+              <ListItemButton onClick={() => setOpenDatos(!openDatos)} sx={btn}>
+                <ListItemIcon sx={{ color: "#fff", minWidth: 38 }}><DatosIcon /></ListItemIcon>
+                <ListItemText primary="Datos" primaryTypographyProps={{ fontWeight: 700, color: "#fff", fontSize: "0.88rem" }} />
+                {openDatos ? <ExpandLess sx={{ color: "#fff" }} /> : <ExpandMore sx={{ color: "#fff" }} />}
               </ListItemButton>
-            )}
+            </ListItem>
 
-            {onOpenPeriodModal && (
-              <ListItemButton onClick={() => action(onOpenPeriodModal)} sx={subBtn}>
-                <ListItemIcon sx={{ minWidth: 28 }}><PeriodIcon sx={{ color: "#fff", fontSize: 18 }} /></ListItemIcon>
-                <ListItemText primary="Gestión de Períodos" primaryTypographyProps={{ fontSize: "0.78rem", fontWeight: 600, color: "#fff" }} />
-              </ListItemButton>
-            )}
+            <Collapse in={openDatos} unmountOnExit>
+              <List disablePadding sx={{ bgcolor: "rgba(0,0,0,0.12)", borderRadius: "10px", mx: 1, mb: 1 }}>
 
-            {onUploadFile && (
-              <ListItemButton onClick={() => action(onUploadFile)} sx={subBtn}>
-                <ListItemIcon sx={{ minWidth: 28 }}><UploadIcon sx={{ color: "#fff", fontSize: 18 }} /></ListItemIcon>
-                <ListItemText primary="Cargar Excel (.xlsx)" primaryTypographyProps={{ fontSize: "0.78rem", fontWeight: 600, color: "#fff" }} />
-              </ListItemButton>
-            )}
+                {onOpenPeriodModal && (
+                  <ListItemButton onClick={() => action(onOpenPeriodModal)} sx={subBtn}>
+                    <ListItemIcon sx={{ minWidth: 28 }}><PeriodIcon sx={{ color: "#fff", fontSize: 18 }} /></ListItemIcon>
+                    <ListItemText primary="Gestión de Períodos" primaryTypographyProps={{ fontSize: "0.78rem", fontWeight: 600, color: "#fff" }} />
+                  </ListItemButton>
+                )}
 
-            {onOpenStats && (
-              <ListItemButton onClick={() => action(onOpenStats)} sx={subBtn}>
-                <ListItemIcon sx={{ minWidth: 28 }}><StatsIcon sx={{ color: "#fff", fontSize: 18 }} /></ListItemIcon>
-                <ListItemText primary="Estadísticas" primaryTypographyProps={{ fontSize: "0.78rem", fontWeight: 600, color: "#fff" }} />
-              </ListItemButton>
-            )}
+                {onUploadFile && (
+                  <ListItemButton onClick={() => action(onUploadFile)} sx={subBtn}>
+                    <ListItemIcon sx={{ minWidth: 28 }}><UploadIcon sx={{ color: "#fff", fontSize: 18 }} /></ListItemIcon>
+                    <ListItemText primary="Cargar Excel (.xlsx)" primaryTypographyProps={{ fontSize: "0.78rem", fontWeight: 600, color: "#fff" }} />
+                  </ListItemButton>
+                )}
 
-          </List>
-        </Collapse>
+                {onOpenStats && (
+                  <ListItemButton onClick={() => action(onOpenStats)} sx={subBtn}>
+                    <ListItemIcon sx={{ minWidth: 28 }}><StatsIcon sx={{ color: "#fff", fontSize: 18 }} /></ListItemIcon>
+                    <ListItemText primary="Estadísticas" primaryTypographyProps={{ fontSize: "0.78rem", fontWeight: 600, color: "#fff" }} />
+                  </ListItemButton>
+                )}
+
+              </List>
+            </Collapse>
+          </>
+        )}
 
       </List>
 

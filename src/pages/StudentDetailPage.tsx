@@ -221,7 +221,7 @@ export default function StudentDetailPage() {
         verde={VERDE_INSTITUCIONAL}
         careerCards={careerCards}
         selectedPeriodId={selectedPeriodId}
-      />
+         />
 
       {/* CONTENIDO — se desplaza a la derecha del sidebar en sm+ */}
       <div style={{
@@ -237,7 +237,7 @@ export default function StudentDetailPage() {
         <div
           style={{
             backgroundColor: VERDE_INSTITUCIONAL,
-            height: 60,
+            height: 56.5,
             display: "flex",
             alignItems: "center",
             gap: 12,

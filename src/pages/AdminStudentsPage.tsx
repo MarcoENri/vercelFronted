@@ -19,9 +19,19 @@ import {
   Collapse,
   Grow,
   Chip,
+  IconButton,
 } from "@mui/material";
 
-import { Logout as LogoutIcon, CheckCircle as CheckCircleIcon, RadioButtonUnchecked as RadioButtonUncheckedIcon } from "@mui/icons-material";
+import {
+  Logout as LogoutIcon,
+  CheckCircle as CheckCircleIcon,
+  RadioButtonUnchecked as RadioButtonUncheckedIcon,
+  Close as CloseIcon,
+  Person as PersonIcon,
+  Badge as BadgeIcon,
+  Email as EmailIcon,
+  Work as WorkIcon,
+} from "@mui/icons-material";
 
 import dayjs, { Dayjs } from "dayjs";
 import "dayjs/locale/es";
@@ -367,6 +377,7 @@ export default function AdminStudentsPage() {
           careerCards={careerCards}
           selectedPeriodId={selectedPeriodId}
           onOpenAddCareer={() => setOpenAddCareer(true)}
+          adminProfile={adminProfile}
           onOpenProfile={() => setOpenAdminProfile(true)}
           onOpenPeriodModal={() => setOpenPeriodModal(true)}
           onUploadFile={() => uploadRef.current?.click()}
@@ -519,25 +530,21 @@ export default function AdminStudentsPage() {
                           px: 1.5,
                           mb: 0.75,
                           borderRadius: "10px",
-                          // NUEVO: fondo y borde verde más visible para el activo
                           bgcolor: p.isActive ? "rgba(0,139,139,0.08)" : "rgba(0,0,0,0.02)",
                           border: p.isActive
                             ? `1.5px solid ${VERDE_INSTITUCIONAL}`
                             : "1px solid rgba(0,0,0,0.08)",
-                          // NUEVO: transición suave al activarse
                           transition: "all 0.4s ease",
                           boxShadow: p.isActive ? "0 2px 8px rgba(0,139,139,0.15)" : "none",
                         }}
                       >
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                          {/* NUEVO: ícono de estado */}
                           {p.isActive
                             ? <CheckCircleIcon sx={{ color: VERDE_INSTITUCIONAL, fontSize: 18 }} />
                             : <RadioButtonUncheckedIcon sx={{ color: "#bbb", fontSize: 18 }} />
                           }
                           <Box>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                              {/* NUEVO: nombre en verde si está activo */}
                               <Typography sx={{
                                 fontWeight: 700,
                                 fontSize: "0.88rem",
@@ -546,7 +553,6 @@ export default function AdminStudentsPage() {
                               }}>
                                 {p.name}
                               </Typography>
-                              {/* NUEVO: chip "ACTUAL" animado */}
                               <Collapse in={p.isActive} orientation="horizontal">
                                 <Chip
                                   label="ACTUAL"
@@ -618,18 +624,79 @@ export default function AdminStudentsPage() {
             </DialogActions>
           </Dialog>
 
-          {/* Otros Modales... */}
-          <Dialog open={openAdminProfile} onClose={() => setOpenAdminProfile(false)} maxWidth="sm" fullWidth fullScreen={isMobile}>
-            <DialogTitle sx={{ fontWeight: 700 }}>Perfil Administrador</DialogTitle>
-            <DialogContent dividers>
-              <Typography sx={{ mb: 2 }}>
-                <b>Nombre:</b> {adminProfile?.fullName || (adminProfile ? `${adminProfile.firstName} ${adminProfile.lastName}` : "-")}
-              </Typography>
-              <Typography sx={{ mb: 1 }}><b>Correo:</b> {adminProfile?.email || "-"}</Typography>
+          {/* ── MODAL MI PERFIL ─────────────────────────────────────────────── */}
+          <Dialog
+            open={openAdminProfile}
+            onClose={() => setOpenAdminProfile(false)}
+            maxWidth="xs"
+            fullWidth
+            PaperProps={{ sx: { borderRadius: "20px", overflow: "hidden" } }}
+          >
+            <DialogTitle sx={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              fontWeight: 800, fontSize: "1.1rem", pb: 1, pt: 2.5, px: 3,
+            }}>
+              Mi Perfil
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <IconButton size="small" onClick={() => { logout(); nav("/"); }} sx={{ color: "#e74c3c" }}>
+                  <LogoutIcon fontSize="small" />
+                </IconButton>
+                <IconButton size="small" onClick={() => setOpenAdminProfile(false)}>
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            </DialogTitle>
+
+            <DialogContent sx={{ px: 3, pb: 4 }}>
+              {/* Avatar */}
+              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mb: 3, mt: 1 }}>
+                <Box sx={{
+                  width: 80, height: 80, borderRadius: "50%",
+                  bgcolor: VERDE_INSTITUCIONAL,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  mb: 1.5,
+                }}>
+                  <Typography sx={{ fontWeight: 900, color: "#fff", fontSize: "2rem" }}>
+                    {(adminProfile?.fullName || adminProfile?.firstName || "A").charAt(0).toUpperCase()}
+                  </Typography>
+                </Box>
+                <Typography sx={{ fontWeight: 800, fontSize: "1.1rem" }}>
+                  {adminProfile?.fullName || `${adminProfile?.firstName ?? ""} ${adminProfile?.lastName ?? ""}`.trim() || "-"}
+                </Typography>
+              </Box>
+
+              {/* Campos */}
+              {[
+                { icon: <PersonIcon sx={{ color: VERDE_INSTITUCIONAL, fontSize: 20 }} />, label: "Username", value: adminProfile?.username ?? adminProfile?.email?.split("@")[0] ?? "-" },
+                { icon: <BadgeIcon sx={{ color: VERDE_INSTITUCIONAL, fontSize: 20 }} />, label: "Nombre Completo", value: adminProfile?.fullName || `${adminProfile?.firstName ?? ""} ${adminProfile?.lastName ?? ""}`.trim() || "-" },
+                { icon: <EmailIcon sx={{ color: VERDE_INSTITUCIONAL, fontSize: 20 }} />, label: "Email", value: adminProfile?.email ?? "-" },
+                { icon: <WorkIcon sx={{ color: VERDE_INSTITUCIONAL, fontSize: 20 }} />, label: "Rol", value: adminProfile?.role ?? "ADMIN", isChip: true },
+              ].map((field) => (
+                <Box key={field.label} sx={{
+                  display: "flex", alignItems: "center", gap: 2,
+                  p: 1.5, mb: 1, borderRadius: "12px", bgcolor: "#f5f7f9",
+                  border: "1px solid #eee",
+                }}>
+                  {field.icon}
+                  <Box>
+                    <Typography sx={{ fontSize: "0.68rem", color: "#999", fontWeight: 700, lineHeight: 1 }}>
+                      {field.label}
+                    </Typography>
+                    {field.isChip ? (
+                      <Chip
+                        label={field.value}
+                        size="small"
+                        sx={{ bgcolor: VERDE_INSTITUCIONAL, color: "#fff", fontWeight: 800, fontSize: "0.72rem", mt: 0.3 }}
+                      />
+                    ) : (
+                      <Typography sx={{ fontWeight: 700, fontSize: "0.9rem" }}>
+                        {field.value}
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              ))}
             </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setOpenAdminProfile(false)} sx={{ fontWeight: 600 }}>Cerrar</Button>
-            </DialogActions>
           </Dialog>
 
           <Dialog open={openAddCareer} onClose={() => setOpenAddCareer(false)} maxWidth="xs" fullWidth fullScreen={isMobile}>
@@ -651,16 +718,16 @@ export default function AdminStudentsPage() {
             </DialogActions>
           </Dialog>
 
-          <AssignCareerModal 
-            open={openAssignCareer} 
-            onClose={() => setOpenAssignCareer(false)} 
-            onSuccess={reloadStudentsAndCards} 
-            availableCareers={availableCareersFromBackend} 
+          <AssignCareerModal
+            open={openAssignCareer}
+            onClose={() => setOpenAssignCareer(false)}
+            onSuccess={reloadStudentsAndCards}
+            availableCareers={availableCareersFromBackend}
           />
-          <CreateUserModal 
-            open={openCreateUser} 
-            onClose={() => setOpenCreateUser(false)} 
-            onSuccess={reloadStudentsAndCards} 
+          <CreateUserModal
+            open={openCreateUser}
+            onClose={() => setOpenCreateUser(false)}
+            onSuccess={reloadStudentsAndCards}
           />
         </Box>
       </Box>

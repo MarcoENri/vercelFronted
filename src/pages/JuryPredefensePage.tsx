@@ -377,7 +377,7 @@ export default function JuryPredefensePage() {
           <Box sx={{
             position: "sticky", top: 0, zIndex: 1100, flexShrink: 0,
             bgcolor: VERDE_INSTITUCIONAL, color: "white",
-            py: 1.5, px: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            py: 2.8, px: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
             display: "flex", justifyContent: "space-between", alignItems: "center",
           }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>

@@ -111,7 +111,7 @@ export default function AdminHeaderBar({
           position: "sticky",
           top: 0,
           zIndex: 1100,
-          borderBottom: "4px solid #fff",
+          borderBottom: "8.1px solid #fff",
           gap: { xs: 0.8, sm: 0 },
           minHeight: { xs: "auto", sm: 61 },
         }}

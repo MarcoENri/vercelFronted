@@ -33,7 +33,7 @@ import MenuBookIcon from "@mui/icons-material/MenuBook";
 
 import { useQuery } from "@tanstack/react-query";
 
-import logoImg from "../assets/imagenes/LogoTec-Photoroom.png";
+
 import AssignStudentModal from "../components/AssignStudentModal";
 import AdminSidebar from "../components/AdminSidebar";
 
@@ -184,6 +184,7 @@ export default function AdminStudentsByCareerPage() {
         verde={VERDE_INSTITUCIONAL}
         careerCards={careersList}
         selectedPeriodId={getSelectedPeriodId() || "ALL"}
+        
       />
 
       <Box
@@ -199,7 +200,7 @@ export default function AdminStudentsByCareerPage() {
         {/* HEADER */}
         <Box sx={{
           bgcolor: VERDE_INSTITUCIONAL,
-          height: 59.1,
+          height: 54.4,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -219,29 +220,19 @@ export default function AdminStudentsByCareerPage() {
               />
             </Box>
 
-            <img
-              src={logoImg}
-              alt="TEC"
-              style={{ height: "46px", cursor: "pointer" }}
-              onClick={(e) => setAnchorElTec(e.currentTarget)}
-            />
-
-            <Menu anchorEl={anchorElTec} open={openTec} onClose={() => setAnchorElTec(null)}>
-              <MenuItem
-                sx={{ color: VERDE_INSTITUCIONAL, fontWeight: 600, "& svg": { color: VERDE_INSTITUCIONAL } }}
-                onClick={() => { window.open("https://its.academicok.com/login?next=/", "_blank"); setAnchorElTec(null); }}
-              >
-                <PublicIcon sx={{ mr: 1 }} /> SGA
-              </MenuItem>
-              <MenuItem
-                sx={{ color: VERDE_INSTITUCIONAL, fontWeight: 600, "& svg": { color: VERDE_INSTITUCIONAL } }}
-                onClick={() => { window.open("https://eva.sudamericano.edu.ec/login/index.php", "_blank"); setAnchorElTec(null); }}
-              >
-                <MenuBookIcon sx={{ mr: 1 }} /> EVA
-              </MenuItem>
-            </Menu>
-          </Space>
-        </Box>
+          {/* NOMBRE DE LA CARRERA */}
+    <Box>
+      <MuiTypography sx={{ color: "#fff", fontWeight: 800, fontSize: { xs: "0.9rem", sm: "1.1rem" }, lineHeight: 1.2 }}>
+        {searchParams.get("careerName")
+          ? decodeURIComponent(searchParams.get("careerName")!)
+          : "Estudiantes por Carrera"}
+      </MuiTypography>
+      <MuiTypography sx={{ color: "rgba(255,255,255,0.75)", fontSize: "0.72rem", fontWeight: 600 }}>
+        ESTUDIANTES · CARRERA · PERIODO TITULACIÓN
+      </MuiTypography>
+    </Box>
+  </Space>
+</Box>
 
         {/* CONTENIDO */}
         <Box sx={{ flex: 1, p: "15px 10px", display: "flex", justifyContent: "center", overflowY: "auto", overflowX: "hidden" }}>

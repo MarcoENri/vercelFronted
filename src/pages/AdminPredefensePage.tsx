@@ -204,6 +204,7 @@ export default function AdminPredefensePage() {
         verde={VERDE_INSTITUCIONAL}
         careerCards={careerCards}
         selectedPeriodId={selectedPeriodId}
+        
       />
 
       <Box
@@ -222,7 +223,7 @@ export default function AdminPredefensePage() {
           elevation={0}
           sx={{ bgcolor: VERDE_INSTITUCIONAL, zIndex: 1100, top: 0 }}
         >
-          <Toolbar sx={{ justifyContent: "space-between", px: { xs: 1, md: 4 }, minHeight: "56px !important" }}>
+          <Toolbar sx={{ justifyContent: "space-between", px: { xs: 1, md: 4 }, minHeight: "53px !important" }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <IconButton
                 onClick={() => setSidebarOpen(true)}

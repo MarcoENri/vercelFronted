@@ -449,6 +449,7 @@ export default function FinalDefenseAdminPage() {
         verde={VERDE_INSTITUCIONAL}
         careerCards={careerCards}
         selectedPeriodId={selectedPeriodId}
+       
       />
 
       {/* CONTENIDO PRINCIPAL */}
@@ -456,7 +457,7 @@ export default function FinalDefenseAdminPage() {
 
         {/* HEADER */}
         <AppBar position="sticky" sx={{ bgcolor: VERDE_INSTITUCIONAL, elevation: 2, zIndex: 1100 }}>
-          <Toolbar sx={{ justifyContent: "space-between", px: { xs: 1, md: 5 }, minHeight: "56px !important", py: 0.8 }}>
+          <Toolbar sx={{ justifyContent: "space-between", px: { xs: 1, md: 5 }, minHeight: "53px !important", py: 0.8 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <IconButton
                 onClick={() => setSidebarOpen(true)}
