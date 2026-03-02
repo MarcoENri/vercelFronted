@@ -638,9 +638,9 @@ export default function AdminStudentsPage() {
             }}>
               Mi Perfil
               <Box sx={{ display: "flex", gap: 1 }}>
-                <IconButton size="small" onClick={() => { logout(); nav("/"); }} sx={{ color: "#e74c3c" }}>
-                  <LogoutIcon fontSize="small" />
-                </IconButton>
+               <IconButton size="small" onClick={() => { setOpenAdminProfile(false); setLogoutOpen(true); }} sx={{ color: "#e74c3c" }}>
+                <LogoutIcon fontSize="small" />
+              </IconButton>
                 <IconButton size="small" onClick={() => setOpenAdminProfile(false)}>
                   <CloseIcon fontSize="small" />
                 </IconButton>
